@@ -56,7 +56,59 @@ powershell -ExecutionPolicy Bypass -File .\tools\push-zephyr.ps1 \
 	-Token "YOUR_TOKEN"
 ```
 
-During push, the tool asks for metadata (project key, folder, labels, segment, objective, precondition, priority, status) and applies it to the JSON before upload.
+Batch upload (folder mode):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\push-zephyr.ps1 \
+	-JsonFolderPath "C:\path\to\exported-json-folder"
+```
+
+The uploader is now zero-prompt. It only reads values from the command line, from `.env`, or from the JSON file itself.
+
+You can also create a local `.env` file from [.env.example](.env.example) and run the tool fully unattended:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\push-zephyr.ps1 -EnvPath ".\.env"
+```
+
+Create the `.env` file from the example like this:
+
+1. Copy [.env.example](.env.example) to `.env` in the project root.
+2. Fill in `ZEPHYR_JSON_PATH`, `ZEPHYR_ENDPOINT`, `ZEPHYR_AUTH_TYPE`, and `ZEPHYR_TOKEN`.
+3. Optional: set the metadata defaults if you want the uploader to prefill values.
+
+Example PowerShell command:
+
+```powershell
+Copy-Item .\.env.example .\.env
+```
+
+Required `.env` variables:
+
+- `ZEPHYR_JSON_PATH`: exported JSON file to upload
+- `ZEPHYR_ENDPOINT`: Zephyr test case API endpoint
+- `ZEPHYR_AUTH_TYPE`: `bearer` or `basic`
+- `ZEPHYR_TOKEN`: auth token
+
+Optional batch variable:
+
+- `ZEPHYR_JSON_FOLDER`: folder containing multiple JSON files to upload one by one.
+
+If `-JsonPath` is omitted, the tool reads `ZEPHYR_JSON_PATH` from `.env`.
+
+Optional metadata defaults:
+
+- `ZEPHYR_PROJECT_KEY`
+- `ZEPHYR_NAME`
+- `ZEPHYR_OBJECTIVE`
+- `ZEPHYR_PRECONDITION`
+- `ZEPHYR_PRIORITY`
+- `ZEPHYR_STATUS`
+- `ZEPHYR_FOLDER`
+- `ZEPHYR_SEGMENT`
+- `ZEPHYR_LABELS`
+
+`.env` is already added to [.gitignore](.gitignore), so your secrets stay local.
 
 ### DevTools mode
 

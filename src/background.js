@@ -323,12 +323,15 @@ async function syncRecordingToTab(tabId) {
   }
 }
 
-async function startRecording(title) {
+async function startRecording(title, segment) {
   state.isRecording = true;
   state.sessionId = sessionId();
   state.startedAt = new Date().toISOString();
   state.steps = [];
   state.title = title || "";
+  if (typeof segment === "string") {
+    state.config.segment = segment.trim();
+  }
   await injectRecorderInOpenTabs();
   await saveState();
   await notifyStateUpdated();
@@ -379,6 +382,12 @@ async function updateExpectedResult(stepIndex, expectedResult) {
     return;
   }
   state.steps[stepIndex].expectedResult = expectedResult || DEFAULT_EXPECTED_RESULT;
+  await saveState();
+  await notifyStateUpdated();
+}
+
+async function setSegment(segment) {
+  state.config.segment = typeof segment === "string" ? segment.trim() : "";
   await saveState();
   await notifyStateUpdated();
 }
@@ -558,7 +567,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === "COMMAND_START") {
-    startRecording(message.title)
+    startRecording(message.title, message.segment)
       .then(() => sendResponse({ ok: true, state }))
       .catch((error) => sendResponse({ ok: false, error: error.message }));
     return true;
@@ -605,6 +614,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === "COMMAND_UPDATE_EXPECTED_RESULT") {
     updateExpectedResult(message.stepIndex, message.expectedResult)
+      .then(() => sendResponse({ ok: true, state }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "COMMAND_SET_SEGMENT") {
+    setSegment(message.segment)
       .then(() => sendResponse({ ok: true, state }))
       .catch((error) => sendResponse({ ok: false, error: error.message }));
     return true;

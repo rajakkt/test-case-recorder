@@ -1,4 +1,5 @@
 const titleInput = document.getElementById("title");
+const segmentInput = document.getElementById("segment");
 const exportButton = document.getElementById("exportButton");
 const exportMenu = document.getElementById("exportMenu");
 const statusNode = document.getElementById("status");
@@ -24,12 +25,14 @@ function sendMessage(message) {
 function updateUi(state) {
   const isRecording = Boolean(state && state.isRecording);
   const count = Array.isArray(state && state.steps) ? state.steps.length : 0;
+  const segment = state && state.config ? state.config.segment || "" : "";
 
   statusNode.textContent = isRecording ? "Recording..." : "Idle";
   stepCountNode.textContent = `${count} steps`;
 
   startBtn.disabled = isRecording;
   stopBtn.disabled = !isRecording;
+  segmentInput.value = segment;
 
   renderSteps(state && state.steps ? state.steps : []);
 }
@@ -130,7 +133,8 @@ async function refreshState() {
 async function onStartClick() {
   const response = await sendMessage({
     type: "COMMAND_START",
-    title: titleInput.value.trim()
+    title: titleInput.value.trim(),
+    segment: segmentInput.value.trim()
   });
   if (!response || !response.ok) {
     throw new Error((response && response.error) || "Start failed");
@@ -184,6 +188,16 @@ async function onExportClick(format) {
   statusNode.textContent = `Exported ${format.toUpperCase()}`;
 }
 
+async function onSegmentChange() {
+  const response = await sendMessage({
+    type: "COMMAND_SET_SEGMENT",
+    segment: segmentInput.value.trim()
+  });
+  if (!response || !response.ok) {
+    throw new Error((response && response.error) || "Segment update failed");
+  }
+}
+
 function bind(button, handler) {
   button.addEventListener("click", async () => {
     try {
@@ -198,6 +212,11 @@ function bind(button, handler) {
 bind(startBtn, onStartClick);
 bind(stopBtn, onStopClick);
 bind(clearBtn, onClearClick);
+segmentInput.addEventListener("change", () => {
+  onSegmentChange().catch((error) => {
+    statusNode.textContent = error.message;
+  });
+});
 
 exportButton.addEventListener("click", () => {
   exportMenu.classList.toggle("hidden");
