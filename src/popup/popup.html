@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Test Case Recorder</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>Test Case Recorder</h1>
+      <p class="subtitle">Record browser actions and export files for Zephyr upload tool.</p>
+
+      <label class="field" for="title">Test case title</label>
+      <input id="title" type="text" placeholder="Checkout flow works" />
+
+      <div class="button-row">
+        <button id="start" class="btn btn-primary">Start</button>
+        <button id="stop" class="btn">Stop</button>
+      </div>
+
+      <div class="button-row">
+        <div class="export-menu export-only">
+          <button id="exportButton" class="btn btn-accent" type="button">Export</button>
+          <div id="exportMenu" class="export-menu-list hidden">
+            <button class="export-option" type="button" data-format="json">Export JSON</button>
+            <button class="export-option" type="button" data-format="html">Export HTML Viewer</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="button-row single-action">
+        <button id="clear" class="btn">Clear Steps</button>
+      </div>
+
+      <p id="status" class="status">Idle</p>
+      <p id="stepCount" class="step-count">0 steps</p>
+
+      <section class="steps-panel">
+        <h2>Expected Results</h2>
+        <div id="stepsList" class="steps-list"></div>
+      </section>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>
