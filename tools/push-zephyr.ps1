@@ -137,6 +137,51 @@ function Get-BoolFromEnv {
   }
 }
 
+function Get-IntFromEnv {
+  param(
+    [string]$Value,
+    [int]$DefaultValue,
+    [int]$MinValue,
+    [int]$MaxValue
+  )
+
+  $parsed = 0
+  if ([string]::IsNullOrWhiteSpace($Value) -or -not [int]::TryParse($Value.Trim(), [ref]$parsed)) {
+    return $DefaultValue
+  }
+
+  if ($parsed -lt $MinValue) {
+    return $MinValue
+  }
+
+  if ($parsed -gt $MaxValue) {
+    return $MaxValue
+  }
+
+  return $parsed
+}
+
+function Is-TransientAttachmentError {
+  param(
+    [string]$ErrorText
+  )
+
+  if ([string]::IsNullOrWhiteSpace($ErrorText)) {
+    return $false
+  }
+
+  $text = $ErrorText.ToLowerInvariant()
+  if ($text -match 'http\s*429' -or $text -match 'http\s*5\d\d') {
+    return $true
+  }
+
+  if ($text -match '503' -or $text -match 'cloudfront' -or $text -match 'request could not be satisfied' -or $text -match 'too much traffic') {
+    return $true
+  }
+
+  return $false
+}
+
 function Remove-EmbeddedImagesFromHtml {
   param(
     [string]$Text
@@ -305,6 +350,9 @@ function Upload-StepScreenshots {
     return
   }
 
+  $maxAttempts = Get-IntFromEnv -Value $envValues.ZEPHYR_STEP_SCREENSHOT_UPLOAD_RETRIES -DefaultValue 3 -MinValue 1 -MaxValue 10
+  $baseDelayMs = Get-IntFromEnv -Value $envValues.ZEPHYR_STEP_SCREENSHOT_RETRY_DELAY_MS -DefaultValue 1200 -MinValue 200 -MaxValue 30000
+
   if (-not $StepScreenshots -or $StepScreenshots.Count -eq 0) {
     return
   }
@@ -343,12 +391,31 @@ function Upload-StepScreenshots {
       "Content-Type" = $parsed.Mime
     }
 
-    try {
-      Invoke-RestMethod -Method Put -Uri $attachmentUri -Headers $binaryHeaders -Body $parsed.Bytes | Out-Null
-      $uploadedCount++
-    } catch {
-      $shotError = Get-HttpErrorDetail -ErrorRecord $_
-      Write-Host "   Warning: step screenshot upload failed for step $($i + 1): $shotError"
+    $uploaded = $false
+    $lastError = ""
+    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+      try {
+        Invoke-RestMethod -Method Put -Uri $attachmentUri -Headers $binaryHeaders -Body $parsed.Bytes | Out-Null
+        $uploaded = $true
+        $uploadedCount++
+        break
+      } catch {
+        $lastError = Get-HttpErrorDetail -ErrorRecord $_
+        $isTransient = Is-TransientAttachmentError -ErrorText $lastError
+
+        if ($isTransient -and $attempt -lt $maxAttempts) {
+          $delayMs = [Math]::Min($baseDelayMs * [Math]::Pow(2, $attempt - 1), 30000)
+          Write-Host "   Warning: step screenshot upload failed for step $($i + 1) (attempt $attempt/$maxAttempts). Retrying in $([int]$delayMs) ms..."
+          [System.Threading.Thread]::Sleep([int]$delayMs)
+          continue
+        }
+
+        break
+      }
+    }
+
+    if (-not $uploaded) {
+      Write-Host "   Warning: step screenshot upload failed for step $($i + 1): $lastError"
     }
   }
 

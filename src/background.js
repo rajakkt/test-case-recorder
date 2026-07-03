@@ -20,6 +20,8 @@ const state = {
   }
 };
 
+let stateLoaded = false;
+
 function sessionId() {
   return `session-${Date.now()}`;
 }
@@ -44,10 +46,18 @@ async function notifyStateUpdated() {
 async function loadState() {
   const data = await chrome.storage.local.get(STORAGE_KEY);
   const persisted = data[STORAGE_KEY];
+  stateLoaded = true;
   if (!persisted) {
     return;
   }
   Object.assign(state, persisted);
+}
+
+async function ensureStateLoaded() {
+  if (stateLoaded) {
+    return;
+  }
+  await loadState();
 }
 
 function normalizeAction(step) {
@@ -73,15 +83,35 @@ function toLabelArray(labels) {
     .filter(Boolean);
 }
 
+function toPlainStepText(value, fallback = "") {
+  const raw = String(value == null ? "" : value);
+  if (!raw) {
+    return fallback;
+  }
+
+  const decoded = raw
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'");
+
+  const noTags = decoded
+    .replace(/<[^>]+>/g, " ")
+    .replace(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return noTags || fallback;
+}
+
 function stepDescription(step) {
   const descriptionParts = [normalizeAction(step)];
   if (step.elementLabel) {
     descriptionParts.push(`on \"${step.elementLabel}\"`);
   }
-  if (step.selector) {
-    descriptionParts.push(`(${step.selector})`);
-  }
-  return descriptionParts.join(" ").trim();
+  return toPlainStepText(descriptionParts.join(" ").trim(), "Action");
 }
 
 function stepDescriptionText(step) {
@@ -102,13 +132,26 @@ function stepDescriptionViewerText(step) {
 
 function stepTestData(step) {
   if (step.action === "navigate") {
-    return step.url || "";
+    return toPlainStepText(step.url || "", "");
   }
-  return step.value || "";
+  return toPlainStepText(step.value || "", "");
 }
 
 function stepExpectedResult(step) {
-  return step.expectedResult || DEFAULT_EXPECTED_RESULT;
+  return toPlainStepText(step.expectedResult || DEFAULT_EXPECTED_RESULT, DEFAULT_EXPECTED_RESULT);
+}
+
+function sanitizeRecordedStep(step) {
+  const source = step || {};
+  return {
+    ...source,
+    url: toPlainStepText(source.url || "", ""),
+    path: toPlainStepText(source.path || "", ""),
+    selector: toPlainStepText(source.selector || "", ""),
+    elementLabel: toPlainStepText(source.elementLabel || "", ""),
+    value: toPlainStepText(source.value || "", ""),
+    expectedResult: toPlainStepText(source.expectedResult || DEFAULT_EXPECTED_RESULT, DEFAULT_EXPECTED_RESULT)
+  };
 }
 
 function toZephyrJson() {
@@ -307,6 +350,7 @@ async function syncRecordingToTab(tabId) {
 }
 
 async function startRecording(title, segment) {
+  await ensureStateLoaded();
   state.isRecording = true;
   state.sessionId = sessionId();
   state.startedAt = new Date().toISOString();
@@ -325,6 +369,7 @@ async function startRecording(title, segment) {
 }
 
 async function stopRecording() {
+  await ensureStateLoaded();
   state.isRecording = false;
   await saveState();
   await notifyStateUpdated();
@@ -334,42 +379,45 @@ async function stopRecording() {
 }
 
 async function appendStep(step) {
+  await ensureStateLoaded();
   if (!state.isRecording) {
     return;
   }
-  step.expectedResult = step.expectedResult || DEFAULT_EXPECTED_RESULT;
+  const safeStep = sanitizeRecordedStep(step);
   const lastStep = state.steps[state.steps.length - 1];
   const sameAsLast =
     lastStep &&
-    lastStep.action === step.action &&
-    lastStep.selector === step.selector &&
-    lastStep.path === step.path &&
-    lastStep.value === step.value;
+    lastStep.action === safeStep.action &&
+    lastStep.selector === safeStep.selector &&
+    lastStep.path === safeStep.path &&
+    lastStep.value === safeStep.value;
 
   if (sameAsLast) {
     return;
   }
 
   const screenshotCount = state.steps.filter((item) => Boolean(item.screenshotDataUrl)).length;
-  if (!step.screenshotDataUrl && screenshotCount < MAX_SCREENSHOTS && Number.isInteger(step.tabId) && Number.isInteger(step.windowId) && step.action !== "api") {
-    step.screenshotDataUrl = await captureStepScreenshot(step.tabId, step.windowId);
+  if (!safeStep.screenshotDataUrl && screenshotCount < MAX_SCREENSHOTS && Number.isInteger(safeStep.tabId) && Number.isInteger(safeStep.windowId) && safeStep.action !== "api") {
+    safeStep.screenshotDataUrl = await captureStepScreenshot(safeStep.tabId, safeStep.windowId);
   }
 
-  state.steps.push(step);
+  state.steps.push(safeStep);
   await saveState();
   await notifyStateUpdated();
 }
 
 async function updateExpectedResult(stepIndex, expectedResult) {
+  await ensureStateLoaded();
   if (!Number.isInteger(stepIndex) || stepIndex < 0 || stepIndex >= state.steps.length) {
     return;
   }
-  state.steps[stepIndex].expectedResult = expectedResult || DEFAULT_EXPECTED_RESULT;
+  state.steps[stepIndex].expectedResult = toPlainStepText(expectedResult || DEFAULT_EXPECTED_RESULT, DEFAULT_EXPECTED_RESULT);
   await saveState();
   await notifyStateUpdated();
 }
 
 async function setSegment(segment) {
+  await ensureStateLoaded();
   state.config.segment = typeof segment === "string" ? segment.trim() : "";
   await saveState();
   await notifyStateUpdated();
@@ -497,6 +545,7 @@ chrome.runtime.onStartup.addListener(async () => {
 });
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  await ensureStateLoaded();
   if (!state.isRecording) {
     return;
   }
@@ -530,6 +579,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 });
 
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
+  await ensureStateLoaded();
   await syncRecordingToTab(activeInfo.tabId);
 });
 
@@ -564,24 +614,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === "COMMAND_EXPORT") {
-    const format = (message.format || "json").toLowerCase();
-    let payload;
-    if (format === "html") {
-      payload = buildHtmlExport();
-    } else if (format === "xml") {
-      payload = buildXmlExport();
-    } else {
-      payload = buildJsonExport();
-    }
-    Promise.resolve(payload)
+    Promise.resolve()
+      .then(() => ensureStateLoaded())
+      .then(() => {
+        const format = (message.format || "json").toLowerCase();
+        if (format === "html") {
+          return buildHtmlExport();
+        }
+        if (format === "xml") {
+          return buildXmlExport();
+        }
+        return buildJsonExport();
+      })
       .then((payload) => sendResponse({ ok: true, payload }))
       .catch((error) => sendResponse({ ok: false, error: error.message }));
     return true;
   }
 
   if (message.type === "COMMAND_CLEAR") {
-    state.steps = [];
-    saveState()
+    Promise.resolve()
+      .then(() => ensureStateLoaded())
+      .then(() => {
+        state.steps = [];
+        return saveState();
+      })
       .then(async () => {
         await notifyStateUpdated();
         sendResponse({ ok: true, state });
@@ -591,8 +647,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === "COMMAND_GET_STATE") {
-    sendResponse({ ok: true, state });
-    return;
+    ensureStateLoaded()
+      .then(() => sendResponse({ ok: true, state }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
   }
 
   if (message.type === "COMMAND_UPDATE_EXPECTED_RESULT") {
