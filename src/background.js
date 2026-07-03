@@ -73,13 +73,6 @@ function toLabelArray(labels) {
     .filter(Boolean);
 }
 
-function screenshotImgTag(step) {
-  if (!step.screenshotDataUrl) {
-    return "";
-  }
-  return `<img src="${step.screenshotDataUrl}" style="width: 300px;" />`;
-}
-
 function stepDescription(step) {
   const descriptionParts = [normalizeAction(step)];
   if (step.elementLabel) {
@@ -88,12 +81,7 @@ function stepDescription(step) {
   if (step.selector) {
     descriptionParts.push(`(${step.selector})`);
   }
-  const text = descriptionParts.join(" ").trim();
-  const image = screenshotImgTag(step);
-  if (!image) {
-    return text;
-  }
-  return `${text}<br>${image}`;
+  return descriptionParts.join(" ").trim();
 }
 
 function stepDescriptionText(step) {
@@ -120,12 +108,7 @@ function stepTestData(step) {
 }
 
 function stepExpectedResult(step) {
-  const text = step.expectedResult || DEFAULT_EXPECTED_RESULT;
-  const image = screenshotImgTag(step);
-  if (!image) {
-    return text;
-  }
-  return `${text}<br>${image}`;
+  return step.expectedResult || DEFAULT_EXPECTED_RESULT;
 }
 
 function toZephyrJson() {
