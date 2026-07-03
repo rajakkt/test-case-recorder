@@ -107,6 +107,11 @@ function toPlainStepText(value, fallback = "") {
 }
 
 function stepDescription(step) {
+  const override = toPlainStepText(step && step.descriptionOverride ? step.descriptionOverride : "", "");
+  if (override) {
+    return override;
+  }
+
   const descriptionParts = [normalizeAction(step)];
   if (step.elementLabel) {
     descriptionParts.push(`on \"${step.elementLabel}\"`);
@@ -115,22 +120,19 @@ function stepDescription(step) {
 }
 
 function stepDescriptionText(step) {
-  const descriptionParts = [normalizeAction(step)];
-  if (step.elementLabel) {
-    descriptionParts.push(`on \"${step.elementLabel}\"`);
-  }
-  return descriptionParts.join(" ").trim();
+  return stepDescription(step);
 }
 
 function stepDescriptionViewerText(step) {
-  const descriptionParts = [normalizeAction(step)];
-  if (step.elementLabel) {
-    descriptionParts.push(`on \"${step.elementLabel}\"`);
-  }
-  return descriptionParts.join(" ").trim();
+  return stepDescription(step);
 }
 
 function stepTestData(step) {
+  const override = toPlainStepText(step && step.testDataOverride ? step.testDataOverride : "", "");
+  if (override) {
+    return override;
+  }
+
   if (step.action === "navigate") {
     return toPlainStepText(step.url || "", "");
   }
@@ -150,7 +152,9 @@ function sanitizeRecordedStep(step) {
     selector: toPlainStepText(source.selector || "", ""),
     elementLabel: toPlainStepText(source.elementLabel || "", ""),
     value: toPlainStepText(source.value || "", ""),
-    expectedResult: toPlainStepText(source.expectedResult || DEFAULT_EXPECTED_RESULT, DEFAULT_EXPECTED_RESULT)
+    expectedResult: toPlainStepText(source.expectedResult || DEFAULT_EXPECTED_RESULT, DEFAULT_EXPECTED_RESULT),
+    descriptionOverride: toPlainStepText(source.descriptionOverride || "", ""),
+    testDataOverride: toPlainStepText(source.testDataOverride || "", "")
   };
 }
 
@@ -416,6 +420,44 @@ async function updateExpectedResult(stepIndex, expectedResult) {
   await notifyStateUpdated();
 }
 
+async function updateStep(stepIndex, patch) {
+  await ensureStateLoaded();
+  if (!Number.isInteger(stepIndex) || stepIndex < 0 || stepIndex >= state.steps.length) {
+    return;
+  }
+
+  const step = state.steps[stepIndex];
+  if (!patch) {
+    return;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, "description")) {
+    step.descriptionOverride = toPlainStepText(patch.description, "");
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, "testData")) {
+    step.testDataOverride = toPlainStepText(patch.testData, "");
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, "expectedResult")) {
+    step.expectedResult = toPlainStepText(patch.expectedResult || DEFAULT_EXPECTED_RESULT, DEFAULT_EXPECTED_RESULT);
+  }
+
+  await saveState();
+  await notifyStateUpdated();
+}
+
+async function deleteStep(stepIndex) {
+  await ensureStateLoaded();
+  if (!Number.isInteger(stepIndex) || stepIndex < 0 || stepIndex >= state.steps.length) {
+    return;
+  }
+
+  state.steps.splice(stepIndex, 1);
+  await saveState();
+  await notifyStateUpdated();
+}
+
 async function setSegment(segment) {
   await ensureStateLoaded();
   state.config.segment = typeof segment === "string" ? segment.trim() : "";
@@ -655,6 +697,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === "COMMAND_UPDATE_EXPECTED_RESULT") {
     updateExpectedResult(message.stepIndex, message.expectedResult)
+      .then(() => sendResponse({ ok: true, state }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "COMMAND_UPDATE_STEP") {
+    updateStep(message.stepIndex, {
+      description: message.description,
+      testData: message.testData,
+      expectedResult: message.expectedResult
+    })
+      .then(() => sendResponse({ ok: true, state }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "COMMAND_DELETE_STEP") {
+    deleteStep(message.stepIndex)
       .then(() => sendResponse({ ok: true, state }))
       .catch((error) => sendResponse({ ok: false, error: error.message }));
     return true;

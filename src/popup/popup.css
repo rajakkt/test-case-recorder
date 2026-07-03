@@ -202,6 +202,25 @@ select {
   min-height: 54px;
 }
 
+.step-field-label {
+  margin: 8px 0 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.step-actions {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.btn-danger {
+  background: #b33a1f;
+  color: #fff;
+  border-color: transparent;
+}
+
 .step-data {
   margin: 6px 0;
   font-size: 11px;

@@ -43,17 +43,41 @@ function stepLabel(step, index) {
   return `${index + 1}. ${action} - ${target}`;
 }
 
-function buildStepDataText(step) {
-  if (step.action === "input") {
-    return `Entered: ${step.value || "(empty)"}`;
+function normalizeAction(step) {
+  if (step.action === "click") {
+    return "Click";
   }
   if (step.action === "navigate") {
-    return `URL: ${step.url || ""}`;
+    return "Navigate";
   }
-  if (step.value) {
-    return `Data: ${step.value}`;
+  if (step.action === "input") {
+    return "Type";
   }
-  return "";
+  if (step.action === "submit") {
+    return "Press Enter";
+  }
+  return step.action || "Action";
+}
+
+function getStepDescription(step) {
+  if (step.descriptionOverride) {
+    return step.descriptionOverride;
+  }
+  const parts = [normalizeAction(step)];
+  if (step.elementLabel) {
+    parts.push(`on "${step.elementLabel}"`);
+  }
+  return parts.join(" ").trim();
+}
+
+function getStepTestData(step) {
+  if (step.testDataOverride) {
+    return step.testDataOverride;
+  }
+  if (step.action === "navigate") {
+    return step.url || "";
+  }
+  return step.value || "";
 }
 
 function renderSteps(steps) {
@@ -76,13 +100,10 @@ function renderSteps(steps) {
 
     item.appendChild(title);
 
-    const stepData = buildStepDataText(step);
-    if (stepData) {
-      const dataNode = document.createElement("p");
-      dataNode.className = "step-data";
-      dataNode.textContent = stepData;
-      item.appendChild(dataNode);
-    }
+    const sourceNode = document.createElement("p");
+    sourceNode.className = "step-data";
+    sourceNode.textContent = `Source: ${step.path || step.url || ""}`;
+    item.appendChild(sourceNode);
 
     if (step.screenshotDataUrl) {
       const preview = document.createElement("img");
@@ -92,14 +113,90 @@ function renderSteps(steps) {
       item.appendChild(preview);
     }
 
-    const textarea = document.createElement("textarea");
-    textarea.value = step.expectedResult || "Action succeeds and the expected UI state is shown";
-    textarea.setAttribute("data-step-index", String(index));
-    textarea.addEventListener("change", onExpectedResultChange);
-    item.appendChild(textarea);
+    const descriptionLabel = document.createElement("p");
+    descriptionLabel.className = "step-field-label";
+    descriptionLabel.textContent = "Description";
+    item.appendChild(descriptionLabel);
+
+    const descriptionInput = document.createElement("textarea");
+    descriptionInput.value = getStepDescription(step);
+    descriptionInput.className = "step-description";
+    item.appendChild(descriptionInput);
+
+    const testDataLabel = document.createElement("p");
+    testDataLabel.className = "step-field-label";
+    testDataLabel.textContent = "Test Data";
+    item.appendChild(testDataLabel);
+
+    const testDataInput = document.createElement("textarea");
+    testDataInput.value = getStepTestData(step);
+    testDataInput.className = "step-test-data";
+    item.appendChild(testDataInput);
+
+    const expectedLabel = document.createElement("p");
+    expectedLabel.className = "step-field-label";
+    expectedLabel.textContent = "Expected Result";
+    item.appendChild(expectedLabel);
+
+    const expectedInput = document.createElement("textarea");
+    expectedInput.value = step.expectedResult || "Action succeeds and the expected UI state is shown";
+    expectedInput.className = "step-expected";
+    item.appendChild(expectedInput);
+
+    const actions = document.createElement("div");
+    actions.className = "step-actions";
+
+    const saveButton = document.createElement("button");
+    saveButton.className = "btn btn-primary";
+    saveButton.textContent = "Save Step";
+    saveButton.addEventListener("click", () => {
+      onSaveStep(index, descriptionInput.value, testDataInput.value, expectedInput.value).catch((error) => {
+        statusNode.textContent = error.message;
+      });
+    });
+
+    const deleteButton = document.createElement("button");
+    deleteButton.className = "btn btn-danger";
+    deleteButton.textContent = "Delete Step";
+    deleteButton.addEventListener("click", () => {
+      onDeleteStep(index).catch((error) => {
+        statusNode.textContent = error.message;
+      });
+    });
+
+    actions.appendChild(saveButton);
+    actions.appendChild(deleteButton);
+    item.appendChild(actions);
 
     stepsListNode.appendChild(item);
   });
+}
+
+async function onSaveStep(stepIndex, description, testData, expectedResult) {
+  const response = await sendMessage({
+    type: "COMMAND_UPDATE_STEP",
+    stepIndex,
+    description: description.trim(),
+    testData: testData.trim(),
+    expectedResult: expectedResult.trim()
+  });
+  if (!response || !response.ok) {
+    throw new Error((response && response.error) || "Step update failed");
+  }
+  updateUi(response.state);
+  statusNode.textContent = `Updated step ${stepIndex + 1}`;
+}
+
+async function onDeleteStep(stepIndex) {
+  const response = await sendMessage({
+    type: "COMMAND_DELETE_STEP",
+    stepIndex
+  });
+  if (!response || !response.ok) {
+    throw new Error((response && response.error) || "Step delete failed");
+  }
+  updateUi(response.state);
+  statusNode.textContent = `Deleted step ${stepIndex + 1}`;
 }
 
 async function onExpectedResultChange(event) {
