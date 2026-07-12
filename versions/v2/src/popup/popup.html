@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Test Case Recorder</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>Test Case Recorder</h1>
+      <p class="subtitle">Record browser actions and export files for Zephyr upload tool.</p>
+
+      <label class="field" for="title">Test case title</label>
+      <input id="title" type="text" placeholder="Enter Test Case Title" />
+
+      <label class="field" for="segment">Segment</label>
+      <input id="segment" type="text" placeholder="Enter Segment" />
+
+      <div class="button-row single-action">
+        <button id="record" class="btn btn-primary">Record</button>
+      </div>
+
+      <div id="recordingIndicator" class="recording-indicator hidden">
+        <span class="recording-dot"></span> Recording...
+      </div>
+
+      <div class="button-row">
+        <div class="export-menu export-only">
+          <button id="exportButton" class="btn btn-accent" type="button">Export</button>
+          <div id="exportMenu" class="export-menu-list hidden">
+            <button class="export-option" type="button" data-format="json">Export JSON</button>
+            <button class="export-option" type="button" data-format="html">Export HTML Viewer</button>
+            <button class="export-option" type="button" data-format="pdf">Export PDF (Open Report)</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="button-row single-action">
+        <button id="clear" class="btn">Clear Steps</button>
+      </div>
+
+      <p id="status" class="status">Idle</p>
+      <p id="stepCount" class="step-count">0 steps</p>
+
+      <section class="steps-panel">
+        <h2>Edit Captured Steps</h2>
+        <div id="stepsList" class="steps-list"></div>
+      </section>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

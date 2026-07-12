@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Test Case Recorder (v2)",
+  "description": "Record browser actions and export Zephyr-ready test case JSON.",
+  "version": "0.2.0",
+  "permissions": [
+    "storage",
+    "tabs",
+    "activeTab",
+    "scripting",
+    "downloads",
+    "sidePanel"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "devtools_page": "src/devtools/devtools.html",
+  "side_panel": {
+    "default_path": "src/sidepanel/panel.html"
+  },
+  "action": {
+    "default_title": "Test Case Recorder",
+    "default_popup": "src/popup/popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "src/shared/selectors.js",
+        "src/content/recorder.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
