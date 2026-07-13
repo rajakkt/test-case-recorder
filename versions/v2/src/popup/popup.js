@@ -9,6 +9,7 @@ const stepsListNode = document.getElementById("stepsList");
 const startBtn = document.getElementById("record");
 const recordingIndicator = document.getElementById("recordingIndicator");
 const clearBtn = document.getElementById("clear");
+const copyTokenBtn = document.getElementById("copyToken");
 
 function sendMessage(message) {
   return new Promise((resolve, reject) => {
@@ -318,6 +319,27 @@ async function onClearClick() {
   updateUi(response.state);
 }
 
+function looksLikeJwt(value) {
+  return typeof value === "string" && value.split(".").length === 3;
+}
+
+async function onCopyTokenClick() {
+  if (!chrome.cookies || !chrome.cookies.getAll) {
+    throw new Error("Cookies permission unavailable. Reload the extension.");
+  }
+
+  const cookies = await chrome.cookies.getAll({ name: "jwt" });
+  const tm4j = cookies.filter((c) => (c.domain || "").includes("tm4j.smartbear.com") && looksLikeJwt(c.value));
+  const candidate = tm4j[0] || cookies.find((c) => looksLikeJwt(c.value));
+
+  if (!candidate || !candidate.value) {
+    throw new Error("No Zephyr token found. Open Zephyr (app.tm4j.smartbear.com) in a tab, then try again.");
+  }
+
+  await navigator.clipboard.writeText(candidate.value);
+  statusNode.textContent = "Zephyr image token copied. Paste it into ZEPHYR_WEB_JWT in .env.";
+}
+
 async function downloadFromPayload(payload) {
   if (!payload || !payload.content || !payload.fileName || !payload.mimeType) {
     throw new Error("Invalid export payload");
@@ -377,6 +399,7 @@ function bind(button, handler) {
 
 bind(startBtn, onToggleRecordClick);
 bind(clearBtn, onClearClick);
+bind(copyTokenBtn, onCopyTokenClick);
 segmentInput.addEventListener("change", () => {
   onSegmentChange().catch((error) => {
     statusNode.textContent = error.message;
