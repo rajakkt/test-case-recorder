@@ -2,6 +2,13 @@
 
 Chrome Extension MVP that records manual browser actions and exports Zephyr-ready test case files with screenshots.
 
+## Versions
+
+- Version 1 (repo root: `manifest.json`, `src/`) — the original recorder and export.
+- Version 2 (`versions/v2/`) — adds a combined Record/Stop button with a live recording indicator, per-step edit (pencil) and delete (x) controls, per-step screenshot show/hide, a printable PDF report (table view), a one-click "Copy Zephyr Image Token" helper, and an updated uploader with screenshot handling modes (attachments or inline images).
+
+Load whichever version you want as an unpacked extension (see below).
+
 ## What it does
 
 - Starts/stops recording from the extension popup.
@@ -25,6 +32,8 @@ The extension focuses only on recording and export. Zephyr upload is handled by 
 - `src/popup/popup.html`: Popup markup
 - `src/popup/popup.css`: Popup styles
 - `src/popup/popup.js`: Popup behavior and command wiring
+- `tools/push-zephyr.ps1`: PowerShell uploader for Zephyr
+- `versions/v2/`: Version 2 of the extension and uploader (see below)
 
 ## Load in Chrome
 
@@ -106,9 +115,23 @@ Optional metadata defaults:
 - `ZEPHYR_STATUS`
 - `ZEPHYR_FOLDER`
 - `ZEPHYR_SEGMENT`
+- `ZEPHYR_SEGMENT_FIELD_NAME`: exact Zephyr custom field name for segment (keep quotes if it has a trailing space, e.g. `"Segments "`).
 - `ZEPHYR_LABELS`
 
-`.env` is already added to [.gitignore](.gitignore), so your secrets stay local.
+Screenshot handling (Version 2 uploader, `versions/v2/tools/push-zephyr.ps1`):
+
+- Default: screenshots are uploaded as step attachments.
+- `ZEPHYR_UPLOAD_STEP_SCREENSHOTS` (default `true`): toggle attachment upload.
+- `ZEPHYR_STEP_SCREENSHOT_UPLOAD_RETRIES` (default `3`) and `ZEPHYR_STEP_SCREENSHOT_RETRY_DELAY_MS` (default `1200`): retry transient upload failures (e.g. CloudFront 503).
+
+Inline images in Expected Result (Version 2 uploader, optional):
+
+- `ZEPHYR_INLINE_IMAGE` (default `false`): when `true`, screenshots are uploaded to Zephyr's rich-text image store and embedded inline in the step Expected Result so they render in Zephyr.
+- `ZEPHYR_WEB_JWT`: a fresh Zephyr web session token (use the "Copy Zephyr Image Token" button). Short-lived (~15 min); a `JWT `/`Bearer ` prefix is auto-stripped.
+- `ZEPHYR_TM4J_BACKEND` (default `https://app.tm4j.smartbear.com/backend`): Zephyr backend base used to request the image upload signature.
+- Note: inline base64 images are not supported by Zephyr (they render broken), so this signed-upload flow is used instead. It relies on Zephyr's internal rich-text upload path and may change; if the token expires you'll get a clear error—grab a fresh token and rerun.
+
+`.env` is already added to [.gitignore](.gitignore), so your secrets stay local. Keep `ZEPHYR_WEB_JWT` local — it is a session token.
 
 ### DevTools mode
 
@@ -125,6 +148,27 @@ You can open the recorder as a browser side panel (right side):
 1. Reload the unpacked extension.
 2. Click the extension action icon.
 3. The `Test Case Recorder` side panel opens and stays visible while you browse.
+
+## Version 2 features (`versions/v2`)
+
+Version 2 is a self-contained copy under `versions/v2`. Load `versions/v2` as the unpacked extension to use it.
+
+Recorder UI:
+
+- Single Record button that toggles Start/Stop, with a live "Recording..." indicator.
+- Per-step editing: click the pencil icon (top-right of a step) to edit Description, Test Data, and Expected Result; changes auto-save.
+- Per-step delete: click the x icon to remove a step.
+- Each step's screenshot is hidden by default with a "Show screenshot" toggle.
+
+Export:
+
+- Export JSON and Export HTML Viewer (steps rendered as a table).
+- Export PDF (Open Report): opens the report in a new tab; use the browser's Save as PDF.
+
+Zephyr image token helper:
+
+- "Copy Zephyr Image Token" copies the short-lived Zephyr rich-text token (from the `app.tm4j.smartbear.com` `jwt` cookie) to the clipboard, to paste into `ZEPHYR_WEB_JWT` in `.env`.
+- Requires being logged into Zephyr in a browser tab. The token is short-lived (~15 min).
 
 ## Export format
 
