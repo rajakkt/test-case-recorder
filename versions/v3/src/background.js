@@ -106,17 +106,92 @@ function toPlainStepText(value, fallback = "") {
   return noTags || fallback;
 }
 
+function friendlyLabel(step) {
+  const label = (step && step.elementLabel ? String(step.elementLabel) : "").trim();
+  if (label) {
+    return label;
+  }
+  if (step && step.role && step.role !== "element") {
+    return step.role;
+  }
+  return "element";
+}
+
+function stepDescriptionCore(step) {
+  const label = friendlyLabel(step);
+  const value = step && step.value != null ? String(step.value) : "";
+  const role = (step && step.role) || "element";
+
+  switch (step.action) {
+    case "navigate":
+      return `Navigate to \"${label}\"`;
+    case "input":
+      if (role === "select") {
+        return `Select \"${value}\" from the \"${label}\" dropdown`;
+      }
+      return `Enter \"${value}\" in the \"${label}\" field`;
+    case "submit":
+      return `Press Enter in the \"${label}\" field`;
+    case "click":
+      if (role === "button") {
+        return `Click the \"${label}\" button`;
+      }
+      if (role === "link") {
+        return `Click the \"${label}\" link`;
+      }
+      if (role === "checkbox") {
+        return `${step.checked ? "Check" : "Uncheck"} the \"${label}\" checkbox`;
+      }
+      if (role === "radio") {
+        return `Select the \"${label}\" option`;
+      }
+      return `Click \"${label}\"`;
+    default:
+      return `${normalizeAction(step)} on \"${label}\"`;
+  }
+}
+
+function generateExpectedResult(step) {
+  const label = friendlyLabel(step);
+  const value = step && step.value != null ? String(step.value) : "";
+  const role = (step && step.role) || "element";
+
+  switch (step.action) {
+    case "navigate":
+      return `The \"${label}\" page is displayed successfully.`;
+    case "input":
+      if (role === "select") {
+        return `\"${value}\" is selected in the \"${label}\" dropdown.`;
+      }
+      return `\"${value}\" is entered in the \"${label}\" field.`;
+    case "submit":
+      return "The form is submitted and the resulting page is displayed.";
+    case "click":
+      if (role === "button") {
+        return `The \"${label}\" action is performed and the resulting screen is displayed.`;
+      }
+      if (role === "link") {
+        return `The \"${label}\" link opens the expected page.`;
+      }
+      if (role === "checkbox") {
+        return `The \"${label}\" checkbox is ${step.checked ? "checked" : "unchecked"}.`;
+      }
+      if (role === "radio") {
+        return `The \"${label}\" option is selected.`;
+      }
+      return `The expected result after clicking \"${label}\" is displayed.`;
+    default:
+      return DEFAULT_EXPECTED_RESULT;
+  }
+}
+
 function stepDescription(step) {
   const override = toPlainStepText(step && step.descriptionOverride ? step.descriptionOverride : "", "");
   if (override) {
     return override;
   }
 
-  const descriptionParts = [normalizeAction(step)];
-  if (step.elementLabel) {
-    descriptionParts.push(`on \"${step.elementLabel}\"`);
-  }
-  return toPlainStepText(descriptionParts.join(" ").trim(), "Action");
+  return toPlainStepText(stepDescriptionCore(step), "Action");
 }
 
 function stepDescriptionText(step) {
@@ -152,7 +227,7 @@ function sanitizeRecordedStep(step) {
     selector: toPlainStepText(source.selector || "", ""),
     elementLabel: toPlainStepText(source.elementLabel || "", ""),
     value: toPlainStepText(source.value || "", ""),
-    expectedResult: toPlainStepText(source.expectedResult || DEFAULT_EXPECTED_RESULT, DEFAULT_EXPECTED_RESULT),
+    expectedResult: toPlainStepText(source.expectedResult ? source.expectedResult : generateExpectedResult(source), DEFAULT_EXPECTED_RESULT),
     descriptionOverride: toPlainStepText(source.descriptionOverride || "", ""),
     testDataOverride: toPlainStepText(source.testDataOverride || "", "")
   };
@@ -382,6 +457,39 @@ async function stopRecording() {
   });
 }
 
+function normalizeNavUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch {
+    return url || "";
+  }
+}
+
+function isNoiseNavigation(navStep, lastStep) {
+  if (!lastStep) {
+    return false;
+  }
+
+  // Suppress navigations that are side-effects of a user action (click/input)
+  // that already produced its own step within a short window.
+  if (lastStep.action === "click" || lastStep.action === "input") {
+    const navTime = Date.parse(navStep.ts);
+    const lastTime = Date.parse(lastStep.ts);
+    if (Number.isFinite(navTime) && Number.isFinite(lastTime) && navTime - lastTime < 2500) {
+      return true;
+    }
+  }
+
+  // Suppress repeated navigations to the same page (only query/hash changed).
+  const lastNav = [...state.steps].reverse().find((item) => item.action === "navigate");
+  if (lastNav && normalizeNavUrl(lastNav.url) === normalizeNavUrl(navStep.url)) {
+    return true;
+  }
+
+  return false;
+}
+
 async function appendStep(step) {
   await ensureStateLoaded();
   if (!state.isRecording) {
@@ -397,6 +505,10 @@ async function appendStep(step) {
     lastStep.value === safeStep.value;
 
   if (sameAsLast) {
+    return;
+  }
+
+  if (safeStep.action === "navigate" && isNoiseNavigation(safeStep, lastStep)) {
     return;
   }
 
@@ -614,6 +726,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 
   await appendStep({
     ts: new Date().toISOString(),
+    action: "navigate",
     url: tab.url,
     path: (() => {
       try {

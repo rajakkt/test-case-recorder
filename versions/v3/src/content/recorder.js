@@ -20,26 +20,125 @@
     return `${location.pathname}${location.search}${location.hash}`;
   }
 
-  function getElementLabel(element) {
-    if (!element) {
+  function cssEscape(value) {
+    if (window.CSS && typeof window.CSS.escape === "function") {
+      return window.CSS.escape(value);
+    }
+    return String(value).replace(/[^a-zA-Z0-9_-]/g, "\\$&");
+  }
+
+  function textFromLabelElement(el) {
+    if (!el) {
       return "";
     }
+    const t = (el.innerText || el.textContent || "").trim();
+    return t ? t.slice(0, 120) : "";
+  }
+
+  function getElementLabel(element) {
+    if (!element || !element.getAttribute) {
+      return "";
+    }
+
     const ariaLabel = element.getAttribute("aria-label");
-    if (ariaLabel) {
+    if (ariaLabel && ariaLabel.trim()) {
       return ariaLabel.trim();
     }
+
+    const labelledby = element.getAttribute("aria-labelledby");
+    if (labelledby) {
+      try {
+        const ref = element.ownerDocument.getElementById(labelledby);
+        const t = textFromLabelElement(ref);
+        if (t) {
+          return t;
+        }
+      } catch (e) {}
+    }
+
+    if (element.id) {
+      try {
+        const forLabel = element.ownerDocument.querySelector(`label[for="${cssEscape(element.id)}"]`);
+        const t = textFromLabelElement(forLabel);
+        if (t) {
+          return t;
+        }
+      } catch (e) {}
+    }
+
+    if (element.closest) {
+      const wrap = element.closest("label");
+      if (wrap && wrap !== element) {
+        const t = textFromLabelElement(wrap);
+        if (t) {
+          return t;
+        }
+      }
+    }
+
     if (element.innerText && element.innerText.trim()) {
       return element.innerText.trim().slice(0, 120);
     }
+
     const placeholder = element.getAttribute("placeholder");
-    if (placeholder) {
+    if (placeholder && placeholder.trim()) {
       return placeholder.trim();
     }
+
+    const title = element.getAttribute("title");
+    if (title && title.trim()) {
+      return title.trim();
+    }
+
+    const alt = element.getAttribute("alt");
+    if (alt && alt.trim()) {
+      return alt.trim();
+    }
+
     const name = element.getAttribute("name");
     if (name) {
       return name;
     }
-    return element.tagName.toLowerCase();
+
+    if (element.tagName === "INPUT" && typeof element.value === "string" && element.value.trim()) {
+      return element.value.trim().slice(0, 120);
+    }
+
+    return element.tagName ? element.tagName.toLowerCase() : "";
+  }
+
+  function getElementRole(element) {
+    if (!element || !element.tagName) {
+      return "element";
+    }
+    const tag = element.tagName.toLowerCase();
+    const roleAttr = (element.getAttribute("role") || "").toLowerCase();
+    const type = (element.getAttribute("type") || "").toLowerCase();
+
+    if (roleAttr === "link" || (tag === "a" && element.getAttribute("href"))) {
+      return "link";
+    }
+    if (roleAttr === "button" || tag === "button" || (tag === "input" && ["button", "submit", "reset", "image"].includes(type))) {
+      return "button";
+    }
+    if (roleAttr === "checkbox" || (tag === "input" && type === "checkbox")) {
+      return "checkbox";
+    }
+    if (roleAttr === "radio" || (tag === "input" && type === "radio")) {
+      return "radio";
+    }
+    if (roleAttr === "listbox" || tag === "select") {
+      return "select";
+    }
+    if (roleAttr === "textbox" || roleAttr === "combobox" || roleAttr === "searchbox" || tag === "textarea" || element.isContentEditable ||
+      (tag === "input" && (type === "" || ["text", "search", "url", "number"].includes(type)))) {
+      return "textbox";
+    }
+    return "element";
+  }
+
+  function isCheckable(target) {
+    return target && target.tagName === "INPUT" && ["checkbox", "radio"].includes((target.type || "").toLowerCase());
   }
 
   function sanitizeInputValue(value) {
@@ -91,7 +190,8 @@
       path: getPagePath(),
       action,
       selector,
-      elementLabel
+      elementLabel,
+      role: getElementRole(target)
     };
   }
 
@@ -121,6 +221,9 @@
     }
 
     const step = buildBaseStep("click", target);
+    if (step.role === "checkbox" || step.role === "radio") {
+      step.checked = Boolean(target.checked);
+    }
     sendRecordedStep(step);
   }
 
@@ -133,12 +236,34 @@
       return;
     }
 
-    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) {
+    if (target instanceof HTMLSelectElement) {
+      if (!shouldRecordInputStep(target)) {
+        return;
+      }
+      const opt = target.options[target.selectedIndex];
+      const value = sanitizeInputValue(opt ? (opt.text || opt.value) : target.value);
+      if (!value) {
+        return;
+      }
+      const step = buildBaseStep("input", target);
+      step.value = value;
+      sendRecordedStep(step);
+      return;
+    }
+
+    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+      if (isCheckable(target)) {
+        return;
+      }
+      const value = sanitizeInputValue(target.value);
+      if (!value) {
+        return;
+      }
       if (!shouldRecordInputStep(target)) {
         return;
       }
       const step = buildBaseStep("input", target);
-      step.value = sanitizeInputValue(target.value);
+      step.value = value;
       sendRecordedStep(step);
     }
   }
@@ -153,11 +278,18 @@
     }
 
     if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+      if (isCheckable(target)) {
+        return;
+      }
+      const value = sanitizeInputValue(target.value);
+      if (!value) {
+        return;
+      }
       if (!shouldRecordInputStep(target)) {
         return;
       }
       const step = buildBaseStep("input", target);
-      step.value = sanitizeInputValue(target.value);
+      step.value = value;
       sendRecordedStep(step);
     }
   }

@@ -69,11 +69,35 @@ function getStepDescription(step) {
   if (step.descriptionOverride) {
     return step.descriptionOverride;
   }
-  const parts = [normalizeAction(step)];
-  if (step.elementLabel) {
-    parts.push(`on "${step.elementLabel}"`);
+  const label = (step.elementLabel && step.elementLabel.trim()) || (step.role && step.role !== "element" ? step.role : "element");
+  const value = step.value != null ? String(step.value) : "";
+  const role = step.role || "element";
+  switch (step.action) {
+    case "navigate":
+      return `Navigate to "${label}"`;
+    case "input":
+      return role === "select"
+        ? `Select "${value}" from the "${label}" dropdown`
+        : `Enter "${value}" in the "${label}" field`;
+    case "submit":
+      return `Press Enter in the "${label}" field`;
+    case "click":
+      if (role === "button") {
+        return `Click the "${label}" button`;
+      }
+      if (role === "link") {
+        return `Click the "${label}" link`;
+      }
+      if (role === "checkbox") {
+        return `${step.checked ? "Check" : "Uncheck"} the "${label}" checkbox`;
+      }
+      if (role === "radio") {
+        return `Select the "${label}" option`;
+      }
+      return `Click "${label}"`;
+    default:
+      return `${step.action || "Action"} "${label}"`;
   }
-  return parts.join(" ").trim();
 }
 
 function getStepTestData(step) {
