@@ -6,6 +6,7 @@ Chrome Extension MVP that records manual browser actions and exports Zephyr-read
 
 - Version 1 (repo root: `manifest.json`, `src/`) — the original recorder and export.
 - Version 2 (`versions/v2/`) — adds a combined Record/Stop button with a live recording indicator, per-step edit (pencil) and delete (x) controls, per-step screenshot show/hide, a printable PDF report (table view), a one-click "Copy Zephyr Image Token" helper, and an updated uploader with screenshot handling modes (attachments or inline images).
+- Version 3 (`versions/v3/`) — builds on Version 2 with higher-quality capture: records inside iframes/frames, generates clearer role-aware step descriptions and expected results, produces proper "Navigate to …" steps, filters out redundant SPA re-navigation noise, and waits for the page to finish rendering before taking each screenshot.
 
 Load whichever version you want as an unpacked extension (see below).
 
@@ -34,6 +35,7 @@ The extension focuses only on recording and export. Zephyr upload is handled by 
 - `src/popup/popup.js`: Popup behavior and command wiring
 - `tools/push-zephyr.ps1`: PowerShell uploader for Zephyr
 - `versions/v2/`: Version 2 of the extension and uploader (see below)
+- `versions/v3/`: Version 3 of the extension and uploader (see below)
 
 ## Load in Chrome
 
@@ -169,6 +171,29 @@ Zephyr image token helper:
 
 - "Copy Zephyr Image Token" copies the short-lived Zephyr rich-text token (from the `app.tm4j.smartbear.com` `jwt` cookie) to the clipboard, to paste into `ZEPHYR_WEB_JWT` in `.env`.
 - Requires being logged into Zephyr in a browser tab. The token is short-lived (~15 min).
+
+## Version 3 features (`versions/v3`)
+
+Version 3 is a self-contained copy under `versions/v3`. Load `versions/v3` as the unpacked extension to use it. It keeps all Version 2 features and adds the following capture-quality improvements.
+
+Capture quality:
+
+- Frame-aware recording: actions performed inside iframes and nested frames are captured (content script runs in all frames).
+- Role-aware descriptions and expected results: steps are phrased based on the element's role (link, button, checkbox, radio, dropdown, text field), producing clearer text such as `Click "Search"`, `Enter "…" in the "Search" field`, or `Select "…" from the "Status" dropdown`.
+- Better element labels: labels are resolved from `aria-label`, `aria-labelledby`, associated `<label>`, placeholder, title, alt, name, and value.
+- Checkbox/radio handling: checked/unchecked state is captured on click; redundant change events are skipped.
+- Search comboboxes (`role="combobox"`/`"searchbox"`) are treated as text fields instead of dropdowns, so they no longer produce empty `Select "" …` steps.
+
+Navigation and noise reduction:
+
+- Navigations generate proper `Navigate to "<page title>"` steps with a matching page-loaded expected result.
+- Redundant SPA re-navigations are suppressed: navigations that only change the query/hash of the same page, and navigations that are side-effects of a click/input (fired within a short window), are filtered out.
+- Empty-value input and dropdown steps are skipped to reduce noise.
+- Step appends are serialized so rapid concurrent events cannot create duplicate steps.
+
+Screenshot timing:
+
+- Before each screenshot, the recorder waits for the tab to reach `complete` and for the page DOM to go quiet (no mutations for ~700ms, capped at ~6s) before capturing, so screenshots reflect fully rendered content instead of a loading state.
 
 ## Export format
 
