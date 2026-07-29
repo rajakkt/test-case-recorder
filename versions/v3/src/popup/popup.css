@@ -21,8 +21,8 @@ body {
 
 .container {
   width: 100%;
-  min-width: 320px;
-  max-width: 520px;
+  min-width: 0;
+  max-width: none;
   min-height: 100vh;
   padding: 14px;
   display: flex;
@@ -74,6 +74,100 @@ select {
 
 .single-action {
   grid-template-columns: 1fr;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.icon-action {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 10px;
+  cursor: pointer;
+  color: var(--text);
+  padding: 0;
+  transition: transform 0.08s ease, box-shadow 0.12s ease, background 0.12s ease, filter 0.12s ease;
+  box-shadow: 0 1px 2px rgba(34, 33, 31, 0.06);
+}
+
+.icon-action svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+.icon-action:hover {
+  box-shadow: 0 3px 8px rgba(34, 33, 31, 0.14);
+}
+
+.icon-action:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 2px rgba(34, 33, 31, 0.1);
+}
+
+.icon-action:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.icon-action.primary {
+  background: var(--primary);
+  color: #fff;
+  border-color: transparent;
+}
+
+.icon-action.recording {
+  background: #b33a1f;
+  color: #fff;
+  border-color: transparent;
+}
+
+.icon-action.stop {
+  background: #7a1f12;
+  color: #fff;
+  border-color: transparent;
+}
+
+.icon-action.accent {
+  background: var(--accent);
+  color: #fff;
+  border-color: transparent;
+}
+
+.toolbar .export-menu {
+  flex: 1 1 0;
+  min-width: 0;
+  position: relative;
+  display: flex;
+}
+
+.toolbar .export-menu .icon-action {
+  width: 100%;
+}
+
+.toolbar .export-menu-list {
+  left: 0;
+  right: auto;
+  min-width: 180px;
+}
+
+.record-row {
+  display: flex;
+  gap: 8px;
+}
+
+.record-row .btn {
+  flex: 1;
 }
 
 .export-only {
@@ -142,6 +236,12 @@ select {
 
 .btn-accent {
   background: var(--accent);
+  color: #fff;
+  border-color: transparent;
+}
+
+.btn-stop {
+  background: #7a1f12;
   color: #fff;
   border-color: transparent;
 }
@@ -274,6 +374,8 @@ select {
   margin: 6px 0;
   font-size: 11px;
   color: var(--muted);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .step-preview {
@@ -295,6 +397,15 @@ select {
 
 .recording-indicator.hidden {
   display: none;
+}
+
+.recording-indicator.paused {
+  color: #8a6d1f;
+}
+
+.recording-indicator.paused .recording-dot {
+  background: #c9a227;
+  animation: none;
 }
 
 .recording-dot {

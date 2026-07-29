@@ -4,6 +4,7 @@ const MAX_SCREENSHOTS = 20;
 
 const state = {
   isRecording: false,
+  isPaused: false,
   sessionId: null,
   startedAt: null,
   title: "",
@@ -453,7 +454,7 @@ async function injectRecorderInOpenTabs() {
 }
 
 async function syncRecordingToTab(tabId) {
-  if (!state.isRecording || !Number.isInteger(tabId)) {
+  if (!state.isRecording || state.isPaused || !Number.isInteger(tabId)) {
     return;
   }
   try {
@@ -469,6 +470,7 @@ async function syncRecordingToTab(tabId) {
 async function startRecording(title, segment) {
   await ensureStateLoaded();
   state.isRecording = true;
+  state.isPaused = false;
   state.sessionId = sessionId();
   state.startedAt = new Date().toISOString();
   state.steps = [];
@@ -488,11 +490,42 @@ async function startRecording(title, segment) {
 async function stopRecording() {
   await ensureStateLoaded();
   state.isRecording = false;
+  state.isPaused = false;
   await saveState();
   await notifyStateUpdated();
   await broadcast({
     type: "RECORDER_STOP"
   });
+}
+
+async function pauseRecording() {
+  await ensureStateLoaded();
+  if (!state.isRecording) {
+    return;
+  }
+  state.isPaused = true;
+  await saveState();
+  await notifyStateUpdated();
+  // Tell content scripts to stop capturing while paused; the session and
+  // already-captured steps are preserved.
+  await broadcast({
+    type: "RECORDER_STOP"
+  });
+}
+
+async function resumeRecording() {
+  await ensureStateLoaded();
+  if (!state.isRecording) {
+    return;
+  }
+  state.isPaused = false;
+  await saveState();
+  await notifyStateUpdated();
+  await broadcast({
+    type: "RECORDER_START",
+    sessionId: state.sessionId
+  });
+  await injectRecorderInOpenTabs();
 }
 
 function normalizeNavUrl(url) {
@@ -540,7 +573,7 @@ function appendStep(step) {
 
 async function appendStepInternal(step) {
   await ensureStateLoaded();
-  if (!state.isRecording) {
+  if (!state.isRecording || state.isPaused) {
     return;
   }
   const safeStep = sanitizeRecordedStep(step);
@@ -762,7 +795,7 @@ chrome.runtime.onStartup.addListener(async () => {
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   await ensureStateLoaded();
-  if (!state.isRecording) {
+  if (!state.isRecording || state.isPaused) {
     return;
   }
   if (changeInfo.status !== "complete") {
@@ -825,6 +858,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === "COMMAND_STOP") {
     stopRecording()
+      .then(() => sendResponse({ ok: true, state }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "COMMAND_PAUSE") {
+    pauseRecording()
+      .then(() => sendResponse({ ok: true, state }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
+  if (message.type === "COMMAND_RESUME") {
+    resumeRecording()
       .then(() => sendResponse({ ok: true, state }))
       .catch((error) => sendResponse({ ok: false, error: error.message }));
     return true;

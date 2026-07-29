@@ -7,9 +7,17 @@ const stepCountNode = document.getElementById("stepCount");
 const stepsListNode = document.getElementById("stepsList");
 
 const startBtn = document.getElementById("record");
+const stopBtn = document.getElementById("stop");
 const recordingIndicator = document.getElementById("recordingIndicator");
+const recordingText = document.getElementById("recordingText");
 const clearBtn = document.getElementById("clear");
 const copyTokenBtn = document.getElementById("copyToken");
+
+const RECORD_ICONS = {
+  record: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6" fill="currentColor"></circle></svg>',
+  pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="6" width="3.5" height="12" rx="1" fill="currentColor"></rect><rect x="13.5" y="6" width="3.5" height="12" rx="1" fill="currentColor"></rect></svg>',
+  continue: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"></path></svg>'
+};
 
 function sendMessage(message) {
   return new Promise((resolve, reject) => {
@@ -25,15 +33,36 @@ function sendMessage(message) {
 
 function updateUi(state) {
   const isRecording = Boolean(state && state.isRecording);
+  const isPaused = Boolean(state && state.isPaused);
   const count = Array.isArray(state && state.steps) ? state.steps.length : 0;
   const segment = state && state.config ? state.config.segment || "" : "";
 
-  statusNode.textContent = isRecording ? "Recording..." : "Idle";
+  statusNode.textContent = !isRecording ? "Idle" : isPaused ? "Paused" : "Recording...";
   stepCountNode.textContent = `${count} steps`;
 
-  startBtn.textContent = isRecording ? "Stop" : "Record";
-  startBtn.className = isRecording ? "btn btn-recording" : "btn btn-primary";
+  if (!isRecording) {
+    startBtn.innerHTML = RECORD_ICONS.record;
+    startBtn.className = "icon-action primary";
+    startBtn.title = "Record";
+    startBtn.setAttribute("aria-label", "Record");
+  } else if (isPaused) {
+    startBtn.innerHTML = RECORD_ICONS.continue;
+    startBtn.className = "icon-action primary";
+    startBtn.title = "Continue";
+    startBtn.setAttribute("aria-label", "Continue");
+  } else {
+    startBtn.innerHTML = RECORD_ICONS.pause;
+    startBtn.className = "icon-action recording";
+    startBtn.title = "Pause";
+    startBtn.setAttribute("aria-label", "Pause");
+  }
+
+  stopBtn.classList.toggle("hidden", !isRecording);
   recordingIndicator.classList.toggle("hidden", !isRecording);
+  recordingIndicator.classList.toggle("paused", isPaused);
+  if (recordingText) {
+    recordingText.textContent = isPaused ? "Paused" : "Recording...";
+  }
   segmentInput.value = segment;
 
   try {
@@ -319,12 +348,32 @@ async function onStartClick() {
 
 async function onToggleRecordClick() {
   const current = await sendMessage({ type: "COMMAND_GET_STATE" });
-  const isRecording = Boolean(current && current.ok && current.state && current.state.isRecording);
-  if (isRecording) {
-    await onStopClick();
-  } else {
+  const st = current && current.ok ? current.state : null;
+  const isRecording = Boolean(st && st.isRecording);
+  const isPaused = Boolean(st && st.isPaused);
+  if (!isRecording) {
     await onStartClick();
+  } else if (isPaused) {
+    await onResumeClick();
+  } else {
+    await onPauseClick();
   }
+}
+
+async function onPauseClick() {
+  const response = await sendMessage({ type: "COMMAND_PAUSE" });
+  if (!response || !response.ok) {
+    throw new Error((response && response.error) || "Pause failed");
+  }
+  updateUi(response.state);
+}
+
+async function onResumeClick() {
+  const response = await sendMessage({ type: "COMMAND_RESUME" });
+  if (!response || !response.ok) {
+    throw new Error((response && response.error) || "Resume failed");
+  }
+  updateUi(response.state);
 }
 
 async function onStopClick() {
@@ -422,6 +471,7 @@ function bind(button, handler) {
 }
 
 bind(startBtn, onToggleRecordClick);
+bind(stopBtn, onStopClick);
 bind(clearBtn, onClearClick);
 bind(copyTokenBtn, onCopyTokenClick);
 segmentInput.addEventListener("change", () => {
