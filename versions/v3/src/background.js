@@ -369,6 +369,44 @@ async function captureStepScreenshot(tabId, windowId) {
   }
 }
 
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForTabRender(tabId, settleMs) {
+  // Wait until the tab reports "complete", then allow the page to paint.
+  const deadline = Date.now() + 4000;
+  try {
+    while (Date.now() < deadline) {
+      const tab = await chrome.tabs.get(tabId);
+      if (!tab || tab.status === "complete") {
+        break;
+      }
+      await delay(150);
+    }
+  } catch (error) {
+    // Tab may have been closed; fall through to the settle delay.
+  }
+
+  // Ask the page to signal when the DOM has stopped mutating, so the
+  // screenshot reflects fully rendered content (important for SPAs that
+  // load data asynchronously after the tab reports "complete").
+  try {
+    await Promise.race([
+      chrome.tabs.sendMessage(
+        tabId,
+        { type: "RECORDER_WAIT_IDLE", quietMs: 700, maxWaitMs: 6000 },
+        { frameId: 0 }
+      ),
+      delay(6500)
+    ]);
+  } catch (error) {
+    // Content script not available; fall back to the fixed settle delay.
+  }
+
+  await delay(settleMs);
+}
+
 async function broadcast(message) {
   const tabs = await chrome.tabs.query({});
   for (const tab of tabs) {
@@ -490,7 +528,17 @@ function isNoiseNavigation(navStep, lastStep) {
   return false;
 }
 
-async function appendStep(step) {
+let appendStepQueue = Promise.resolve();
+
+function appendStep(step) {
+  // Serialize appends so that dedup checks and pushes are atomic. Screenshot
+  // capture is async (seconds), so without this two rapid events could both
+  // pass the dedup check before either pushes, producing duplicate steps.
+  appendStepQueue = appendStepQueue.then(() => appendStepInternal(step)).catch(() => {});
+  return appendStepQueue;
+}
+
+async function appendStepInternal(step) {
   await ensureStateLoaded();
   if (!state.isRecording) {
     return;
@@ -514,6 +562,8 @@ async function appendStep(step) {
 
   const screenshotCount = state.steps.filter((item) => Boolean(item.screenshotDataUrl)).length;
   if (!safeStep.screenshotDataUrl && screenshotCount < MAX_SCREENSHOTS && Number.isInteger(safeStep.tabId) && Number.isInteger(safeStep.windowId) && safeStep.action !== "api") {
+    const settleMs = safeStep.action === "navigate" ? 1200 : 700;
+    await waitForTabRender(safeStep.tabId, settleMs);
     safeStep.screenshotDataUrl = await captureStepScreenshot(safeStep.tabId, safeStep.windowId);
   }
 

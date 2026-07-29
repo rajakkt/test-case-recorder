@@ -351,7 +351,64 @@
       sendResponse({ ok: true });
       return;
     }
+
+    if (message.type === "RECORDER_WAIT_IDLE") {
+      // Resolve once the DOM has been quiet (no mutations) for a short
+      // window, so screenshots are taken after content has rendered.
+      const quietMs = Number.isFinite(message.quietMs) ? message.quietMs : 700;
+      const maxWaitMs = Number.isFinite(message.maxWaitMs) ? message.maxWaitMs : 6000;
+      waitForDomIdle(quietMs, maxWaitMs).then(() => sendResponse({ ok: true }));
+      return true; // keep the message channel open for the async response
+    }
   });
+
+  function waitForDomIdle(quietMs, maxWaitMs) {
+    return new Promise((resolve) => {
+      let quietTimer = null;
+      let settled = false;
+
+      const finish = () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        if (quietTimer) {
+          clearTimeout(quietTimer);
+        }
+        try {
+          observer.disconnect();
+        } catch (error) {
+          // ignore
+        }
+        resolve();
+      };
+
+      const armQuietTimer = () => {
+        if (quietTimer) {
+          clearTimeout(quietTimer);
+        }
+        quietTimer = setTimeout(finish, quietMs);
+      };
+
+      const observer = new MutationObserver(armQuietTimer);
+      try {
+        observer.observe(document.documentElement || document, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          characterData: true
+        });
+      } catch (error) {
+        resolve();
+        return;
+      }
+
+      // Hard cap so we never wait forever on pages with continuous activity.
+      setTimeout(finish, maxWaitMs);
+      armQuietTimer();
+    });
+  }
+
 
   document.addEventListener("click", onClick, true);
   document.addEventListener("change", onChange, true);
