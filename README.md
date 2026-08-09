@@ -7,6 +7,7 @@ Chrome Extension MVP that records manual browser actions and exports Zephyr-read
 - Version 1 (repo root: `manifest.json`, `src/`) — the original recorder and export.
 - Version 2 (`versions/v2/`) — adds a combined Record/Stop button with a live recording indicator, per-step edit (pencil) and delete (x) controls, per-step screenshot show/hide, a printable PDF report (table view), a one-click "Copy Zephyr Image Token" helper, and an updated uploader with screenshot handling modes (attachments or inline images).
 - Version 3 (`versions/v3/`) — builds on Version 2 with higher-quality capture: records inside iframes/frames, generates clearer role-aware step descriptions and expected results, produces proper "Navigate to …" steps, filters out redundant SPA re-navigation noise, and waits for the page to finish rendering before taking each screenshot.
+- Version 4 (`versions/v4/`) — adds one-click **upload to Zephyr directly from the extension** using your existing browser session (the Zephyr `jwt` cookie). No API token, no `.env`, and no PowerShell required. Enter a title and optional folder path; the extension auto-resolves the folder, status, priority, and required custom fields for the current project, and embeds screenshots inline in each step's Expected Result.
 
 Load whichever version you want as an unpacked extension (see below).
 
@@ -36,6 +37,7 @@ The extension focuses only on recording and export. Zephyr upload is handled by 
 - `tools/push-zephyr.ps1`: PowerShell uploader for Zephyr
 - `versions/v2/`: Version 2 of the extension and uploader (see below)
 - `versions/v3/`: Version 3 of the extension and uploader (see below)
+- `versions/v4/`: Version 4 of the extension with built-in Zephyr upload (see below)
 
 ## Load in Chrome
 
@@ -194,6 +196,45 @@ Navigation and noise reduction:
 Screenshot timing:
 
 - Before each screenshot, the recorder waits for the tab to reach `complete` and for the page DOM to go quiet (no mutations for ~700ms, capped at ~6s) before capturing, so screenshots reflect fully rendered content instead of a loading state.
+
+## Version 4 features (`versions/v4`)
+
+Version 4 is a self-contained copy under `versions/v4`. Load `versions/v4` as the unpacked extension to use it. It keeps all Version 3 features and adds **built-in upload to Zephyr Scale Cloud** — removing the separate PowerShell uploader, `.env`, and API tokens for the common case.
+
+One-click upload:
+
+- A green **Upload to Zephyr** button (cloud icon) in the recorder toolbar creates the test case and its steps in Zephyr in a single action.
+- Authentication uses your **existing browser session** — the extension reads the Zephyr `jwt` cookie from `app.tm4j.smartbear.com` and derives the project, project key, and owner from it. You never paste a token.
+- The test case is created in whatever **project your Zephyr session is currently on**, so it can't land in a random project.
+- Screenshots are uploaded to Zephyr's rich-text store and embedded inline in each step's Expected Result (best-effort: a failed image never blocks the upload).
+- On success the status shows the new test case key (e.g. `Uploaded to Zephyr as TEGE-T123`).
+
+Automatic per-project setup (no IDs to look up):
+
+- **Folder path** — enter a path like `/CSD/zephyr-uploader` in the popup and the extension resolves it to the correct folder in the current project. Leave it blank to create in the project root. If the path doesn't exist, the upload aborts instead of placing the test case in the wrong folder.
+- **Status and Priority** — the project's default status and priority are resolved and applied automatically.
+- **Required custom fields (e.g. Segment)** — the project's custom fields are read automatically. Type the value in the **Segment** box and it is sent to the project's Segment field, whether it is free text or a dropdown (dropdown values are matched to an option by name). If a required custom field is left empty, the upload aborts with a message naming the field.
+
+Requirements:
+
+- Be signed in to Zephyr in a browser tab (keep it open/recently refreshed — the session token is short-lived, ~15 min).
+- Enter a **test case title** before uploading.
+
+Optional advanced overrides (expand "Zephyr upload settings" in the popup):
+
+- **Labels** (comma-separated).
+- **Folder ID**, **Status ID**, **Priority ID**, and **Segment custom field ID** — numeric IDs that override the automatic resolution above. Normally not needed; leave blank.
+
+How it works (internal API, no token):
+
+- Reads the session `jwt` cookie via the `cookies` permission and calls Zephyr's internal web API the same way the Zephyr web app does:
+  - Create: `POST /backend/rest/tests/2.0/testcase`
+  - Folders: `GET /backend/rest/tests/2.0/project/{projectId}/foldertree/testcase`
+  - Custom fields: `GET /backend/rest/tests/2.0/project/{projectId}/customfields/testcase`
+  - Status / Priority: `GET /backend/rest/tests/2.0/project/{projectId}/testcasestatus` and `/testcasepriority`
+  - Inline images: `GET /backend/rest/tests/2.0/uploaddetails/richtextattachment` then a signed upload to the rich-text store.
+- These are internal endpoints and may change if SmartBear updates their app; if uploads start failing, re-capture the relevant request and update the mapping.
+- The PowerShell uploader is still included under `versions/v4/tools` for advanced/batch scenarios, but is no longer required.
 
 ## Export format
 

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Test Case Report</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        font-family: "Segoe UI", Arial, sans-serif;
+        background: #f6f7f9;
+      }
+
+      .toolbar {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding: 10px 14px;
+        background: #0c7a5c;
+        color: #fff;
+        position: sticky;
+        top: 0;
+      }
+
+      .toolbar h1 {
+        font-size: 14px;
+        margin: 0;
+        flex: 1;
+      }
+
+      .toolbar button {
+        border: 0;
+        border-radius: 6px;
+        padding: 8px 12px;
+        cursor: pointer;
+        font-weight: 600;
+        background: #fff;
+        color: #0c7a5c;
+      }
+
+      #reportFrame {
+        border: 0;
+        width: 100%;
+        height: calc(100vh - 44px);
+        background: #fff;
+      }
+
+      #emptyState {
+        padding: 24px;
+        color: #61605a;
+      }
+
+      .hidden {
+        display: none;
+      }
+
+      @media print {
+        .toolbar {
+          display: none;
+        }
+
+        #reportFrame {
+          height: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="toolbar">
+      <h1>Test Case Report</h1>
+      <button id="printButton" type="button">Save as PDF</button>
+    </div>
+    <iframe id="reportFrame" title="Test Case Report"></iframe>
+    <p id="emptyState" class="hidden"></p>
+    <script src="report.js"></script>
+  </body>
+</html>
