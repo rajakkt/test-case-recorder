@@ -397,10 +397,10 @@ async function waitForTabRender(tabId, settleMs) {
     await Promise.race([
       chrome.tabs.sendMessage(
         tabId,
-        { type: "RECORDER_WAIT_IDLE", quietMs: 700, maxWaitMs: 6000 },
+        { type: "RECORDER_WAIT_IDLE", quietMs: 800, maxWaitMs: 10000 },
         { frameId: 0 }
       ),
-      delay(6500)
+      delay(10500)
     ]);
   } catch (error) {
     // Content script not available; fall back to the fixed settle delay.
@@ -713,9 +713,9 @@ function renderStepRow(step, index) {
   return [
     "<tr>",
     `  <td class=\"col-index\">${index + 1}</td>`,
-    `  <td>${description}</td>`,
+    `  <td class=\"col-desc\">${description}</td>`,
     `  <td class=\"col-data\">${testData || "N/A"}</td>`,
-    `  <td>${expected}</td>`,
+    `  <td class=\"col-expected\">${expected}</td>`,
     `  <td class=\"col-shot\">${image}</td>`,
     "</tr>"
   ].join("\n");
@@ -728,7 +728,7 @@ function toHtmlViewer() {
     ? [
         "    <table class=\"steps-table\">",
         "      <thead>",
-        "        <tr><th class=\"col-index\">#</th><th>Description</th><th>Test Data</th><th>Expected Result</th><th class=\"col-shot\">Screenshot</th></tr>",
+        "        <tr><th class=\"col-index\">#</th><th class=\"col-desc\">Description</th><th class=\"col-data\">Test Data</th><th class=\"col-expected\">Expected Result</th><th class=\"col-shot\">Screenshot</th></tr>",
         "      </thead>",
         "      <tbody>",
         rowsHtml,
@@ -754,13 +754,15 @@ function toHtmlViewer() {
     "    p { margin: 6px 0; font-size: 13px; line-height: 1.4; }",
     "    .meta { display: grid; gap: 6px; }",
     "    .step { background: #fff; border: 1px solid #d9deea; border-radius: 10px; padding: 12px; margin-bottom: 10px; }",
-    "    table.steps-table { width: 100%; border-collapse: collapse; font-size: 13px; }",
-    "    .steps-table th, .steps-table td { border: 1px solid #d9deea; padding: 8px; text-align: left; vertical-align: top; }",
+    "    table.steps-table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }",
+    "    .steps-table th, .steps-table td { border: 1px solid #d9deea; padding: 8px; text-align: left; vertical-align: top; word-break: break-word; overflow-wrap: anywhere; }",
     "    .steps-table th { background: #eef1f6; }",
-    "    .col-index { width: 36px; text-align: center; }",
-    "    .col-data { width: 180px; word-break: break-word; overflow-wrap: anywhere; }",
-    "    .col-shot { width: 420px; }",
-    "    .step-image { max-width: 400px; width: 100%; border: 1px solid #d9deea; border-radius: 6px; }",
+    "    .col-index { width: 30px; text-align: center; }",
+    "    .col-desc { width: 160px; }",
+    "    .col-data { width: 130px; }",
+    "    .col-expected { width: 180px; }",
+    "    .col-shot { width: 560px; }",
+    "    .step-image { width: 100%; height: auto; display: block; border: 1px solid #d9deea; border-radius: 6px; }",
     "  </style>",
     "</head>",
     "<body>",

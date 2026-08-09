@@ -366,6 +366,9 @@
     return new Promise((resolve) => {
       let quietTimer = null;
       let settled = false;
+      let hookTimer = null;
+      const observers = [];
+      const deadline = Date.now() + maxWaitMs;
 
       const finish = () => {
         if (settled) {
@@ -375,33 +378,143 @@
         if (quietTimer) {
           clearTimeout(quietTimer);
         }
-        try {
-          observer.disconnect();
-        } catch (error) {
-          // ignore
+        if (hookTimer) {
+          clearInterval(hookTimer);
         }
+        observers.forEach((obs) => {
+          try {
+            obs.disconnect();
+          } catch (error) {
+            // ignore
+          }
+        });
         resolve();
+      };
+
+      // Collects the top document plus any same-origin iframe documents.
+      const accessibleDocs = () => {
+        const docs = [document];
+        document.querySelectorAll("iframe").forEach((frame) => {
+          try {
+            if (frame.contentDocument) {
+              docs.push(frame.contentDocument);
+            }
+          } catch (error) {
+            // cross-origin: skip
+          }
+        });
+        return docs;
+      };
+
+      // Detects a visible loading indicator (spinners, progress bars, busy
+      // regions). A CSS-animated spinner doesn't mutate the DOM, so we must
+      // explicitly wait for it to disappear before capturing.
+      const hasLoadingIndicator = () => {
+        const selector =
+          '[aria-busy="true"], [role="progressbar"], [class*="loading" i], [class*="spinner" i], [class*="loader" i], [class*="busy" i]';
+        for (const doc of accessibleDocs()) {
+          let nodes;
+          try {
+            nodes = doc.querySelectorAll(selector);
+          } catch (error) {
+            continue;
+          }
+          for (const node of nodes) {
+            try {
+              const rect = node.getBoundingClientRect();
+              if (rect.width <= 1 || rect.height <= 1) {
+                continue;
+              }
+              const view = (node.ownerDocument && node.ownerDocument.defaultView) || window;
+              const style = view.getComputedStyle(node);
+              if (style.visibility !== "hidden" && style.display !== "none" && style.opacity !== "0") {
+                return true;
+              }
+            } catch (error) {
+              // ignore individual node errors
+            }
+          }
+        }
+        return false;
+      };
+
+      const tryFinish = () => {
+        if (settled) {
+          return;
+        }
+        // Keep waiting while a loading indicator is visible (until the cap).
+        if (hasLoadingIndicator() && Date.now() < deadline) {
+          armQuietTimer();
+          return;
+        }
+        finish();
       };
 
       const armQuietTimer = () => {
         if (quietTimer) {
           clearTimeout(quietTimer);
         }
-        quietTimer = setTimeout(finish, quietMs);
+        quietTimer = setTimeout(tryFinish, quietMs);
       };
 
-      const observer = new MutationObserver(armQuietTimer);
-      try {
-        observer.observe(document.documentElement || document, {
-          childList: true,
-          subtree: true,
-          attributes: true,
-          characterData: true
+      const observeDoc = (doc) => {
+        if (!doc) {
+          return;
+        }
+        try {
+          const obs = new MutationObserver(armQuietTimer);
+          obs.observe(doc.documentElement || doc, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            characterData: true
+          });
+          observers.push(obs);
+        } catch (error) {
+          // ignore
+        }
+      };
+
+      // Watch iframes: reset the quiet timer whenever one finishes loading, and
+      // observe same-origin iframe content so its rendering counts as activity.
+      const hookIframes = () => {
+        const frames = document.querySelectorAll("iframe");
+        frames.forEach((frame) => {
+          if (frame.__tcrHooked) {
+            return;
+          }
+          frame.__tcrHooked = true;
+          frame.addEventListener("load", armQuietTimer);
+          let doc = null;
+          try {
+            doc = frame.contentDocument;
+          } catch (error) {
+            doc = null; // cross-origin: cannot observe content
+          }
+          if (doc) {
+            if (doc.readyState !== "complete") {
+              armQuietTimer();
+            }
+            observeDoc(doc);
+          }
         });
+      };
+
+      observeDoc(document);
+
+      try {
+        hookIframes();
       } catch (error) {
-        resolve();
-        return;
+        // ignore
       }
+      // Re-hook iframes that appear later during loading.
+      hookTimer = setInterval(() => {
+        try {
+          hookIframes();
+        } catch (error) {
+          // ignore
+        }
+      }, 300);
 
       // Hard cap so we never wait forever on pages with continuous activity.
       setTimeout(finish, maxWaitMs);
