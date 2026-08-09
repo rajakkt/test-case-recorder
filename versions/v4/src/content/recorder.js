@@ -35,6 +35,53 @@
     return t ? t.slice(0, 120) : "";
   }
 
+  function normalizeText(value) {
+    return String(value || "").replace(/\s+/g, " ").trim();
+  }
+
+  // Produces a concise label from an element's text. For small controls this is
+  // just the text; for larger containers it prefers the element's own direct
+  // text nodes, and finally truncates rather than returning a giant blob.
+  function conciseText(element) {
+    const full = normalizeText(element.innerText || element.textContent || "");
+    if (!full) {
+      return "";
+    }
+    if (full.length <= 80) {
+      return full;
+    }
+    let direct = "";
+    try {
+      element.childNodes.forEach((node) => {
+        if (node.nodeType === 3) {
+          direct += node.textContent;
+        }
+      });
+    } catch (error) {
+      // ignore
+    }
+    direct = normalizeText(direct);
+    if (direct && direct.length <= 80) {
+      return direct;
+    }
+    return `${full.slice(0, 77)}...`;
+  }
+
+  // Climbs from the actual event target to the nearest interactive element
+  // (link/button/tab/menu item/etc.) so labels reflect the control the user
+  // clicked, not a large surrounding container.
+  function resolveClickTarget(el) {
+    if (!el || !el.closest) {
+      return el;
+    }
+    const interactive = el.closest(
+      'a[href], button, [role="button"], [role="link"], [role="tab"], [role="menuitem"], ' +
+        '[role="menuitemcheckbox"], [role="menuitemradio"], [role="option"], [role="treeitem"], ' +
+        '[role="checkbox"], [role="radio"], summary, label'
+    );
+    return interactive || el;
+  }
+
   function getElementLabel(element) {
     if (!element || !element.getAttribute) {
       return "";
@@ -77,7 +124,10 @@
     }
 
     if (element.innerText && element.innerText.trim()) {
-      return element.innerText.trim().slice(0, 120);
+      const text = conciseText(element);
+      if (text) {
+        return text;
+      }
     }
 
     const placeholder = element.getAttribute("placeholder");
@@ -215,11 +265,12 @@
     if (!STATE.isRecording || Date.now() < STATE.suppressUntil) {
       return;
     }
-    const target = event.target;
-    if (!(target instanceof Element) || shouldSkipEvent(target)) {
+    const rawTarget = event.target;
+    if (!(rawTarget instanceof Element) || shouldSkipEvent(rawTarget)) {
       return;
     }
 
+    const target = resolveClickTarget(rawTarget);
     const step = buildBaseStep("click", target);
     if (step.role === "checkbox" || step.role === "radio") {
       step.checked = Boolean(target.checked);
@@ -411,7 +462,7 @@
       // explicitly wait for it to disappear before capturing.
       const hasLoadingIndicator = () => {
         const selector =
-          '[aria-busy="true"], [role="progressbar"], [class*="loading" i], [class*="spinner" i], [class*="loader" i], [class*="busy" i]';
+          '[aria-busy="true"], [role="progressbar"], [class*="busy-indicator" i], [class*="loading" i], [class*="spinner" i], [class*="loader" i]';
         for (const doc of accessibleDocs()) {
           let nodes;
           try {

@@ -375,6 +375,95 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// Runs inside every frame (via chrome.scripting.executeScript). Resolves once
+// the frame's DOM has been quiet for `quietMs` AND no loading indicator is
+// visible, or when `maxWaitMs` elapses. Must be fully self-contained.
+function domIdleWaiter(quietMs, maxWaitMs) {
+  return new Promise((resolve) => {
+    let quietTimer = null;
+    let settled = false;
+    let observer = null;
+    const deadline = Date.now() + maxWaitMs;
+
+    const hasLoadingIndicator = () => {
+      const selector =
+        '[aria-busy="true"], [role="progressbar"], [class*="busy-indicator" i], [class*="loading" i], [class*="spinner" i], [class*="loader" i]';
+      let nodes;
+      try {
+        nodes = document.querySelectorAll(selector);
+      } catch (error) {
+        return false;
+      }
+      for (const node of nodes) {
+        try {
+          const rect = node.getBoundingClientRect();
+          if (rect.width <= 1 || rect.height <= 1) {
+            continue;
+          }
+          const style = getComputedStyle(node);
+          if (style.visibility !== "hidden" && style.display !== "none" && style.opacity !== "0") {
+            return true;
+          }
+        } catch (error) {
+          // ignore individual nodes
+        }
+      }
+      return false;
+    };
+
+    const finish = () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (quietTimer) {
+        clearTimeout(quietTimer);
+      }
+      try {
+        if (observer) {
+          observer.disconnect();
+        }
+      } catch (error) {
+        // ignore
+      }
+      resolve(true);
+    };
+
+    const tryFinish = () => {
+      if (settled) {
+        return;
+      }
+      if (hasLoadingIndicator() && Date.now() < deadline) {
+        arm();
+        return;
+      }
+      finish();
+    };
+
+    const arm = () => {
+      if (quietTimer) {
+        clearTimeout(quietTimer);
+      }
+      quietTimer = setTimeout(tryFinish, quietMs);
+    };
+
+    try {
+      observer = new MutationObserver(arm);
+      observer.observe(document.documentElement || document, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        characterData: true
+      });
+    } catch (error) {
+      // ignore
+    }
+
+    setTimeout(finish, maxWaitMs);
+    arm();
+  });
+}
+
 async function waitForTabRender(tabId, settleMs) {
   // Wait until the tab reports "complete", then allow the page to paint.
   const deadline = Date.now() + 4000;
@@ -390,20 +479,32 @@ async function waitForTabRender(tabId, settleMs) {
     // Tab may have been closed; fall through to the settle delay.
   }
 
-  // Ask the page to signal when the DOM has stopped mutating, so the
-  // screenshot reflects fully rendered content (important for SPAs that
-  // load data asynchronously after the tab reports "complete").
+  // Wait for the DOM to settle in EVERY frame (including cross-origin app
+  // iframes, e.g. the Infor portal), so screenshots aren't taken while a
+  // busy-indicator/spinner is still showing.
   try {
     await Promise.race([
-      chrome.tabs.sendMessage(
-        tabId,
-        { type: "RECORDER_WAIT_IDLE", quietMs: 800, maxWaitMs: 10000 },
-        { frameId: 0 }
-      ),
+      chrome.scripting.executeScript({
+        target: { tabId, allFrames: true },
+        func: domIdleWaiter,
+        args: [800, 10000]
+      }),
       delay(10500)
     ]);
   } catch (error) {
-    // Content script not available; fall back to the fixed settle delay.
+    // Fallback: ask the top frame via messaging (e.g. if injection is blocked).
+    try {
+      await Promise.race([
+        chrome.tabs.sendMessage(
+          tabId,
+          { type: "RECORDER_WAIT_IDLE", quietMs: 800, maxWaitMs: 10000 },
+          { frameId: 0 }
+        ),
+        delay(10500)
+      ]);
+    } catch (innerError) {
+      // Content script not available; fall back to the fixed settle delay.
+    }
   }
 
   await delay(settleMs);
@@ -594,16 +695,59 @@ async function appendStepInternal(step) {
     return;
   }
 
-  const screenshotCount = state.steps.filter((item) => Boolean(item.screenshotDataUrl)).length;
-  if (!safeStep.screenshotDataUrl && screenshotCount < MAX_SCREENSHOTS && Number.isInteger(safeStep.tabId) && Number.isInteger(safeStep.windowId) && safeStep.action !== "api") {
-    const settleMs = safeStep.action === "navigate" ? 1200 : 700;
-    await waitForTabRender(safeStep.tabId, settleMs);
-    safeStep.screenshotDataUrl = await captureStepScreenshot(safeStep.tabId, safeStep.windowId);
-  }
-
+  // Record the step immediately so recording stays responsive and no step is
+  // lost when the user acts quickly. The screenshot is captured separately and
+  // attached afterwards (see queueScreenshotCapture).
+  safeStep.id = `step-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   state.steps.push(safeStep);
   await saveState();
   await notifyStateUpdated();
+
+  const canCapture =
+    !safeStep.screenshotDataUrl &&
+    Number.isInteger(safeStep.tabId) &&
+    Number.isInteger(safeStep.windowId) &&
+    safeStep.action !== "api";
+  if (canCapture) {
+    queueScreenshotCapture(safeStep.id, safeStep.tabId, safeStep.windowId, safeStep.action);
+  }
+}
+
+let screenshotQueue = Promise.resolve();
+
+function queueScreenshotCapture(stepId, tabId, windowId, action) {
+  // Serialize captures (captureVisibleTab is rate-limited) without blocking
+  // step recording.
+  screenshotQueue = screenshotQueue
+    .then(() => captureAndAttachScreenshot(stepId, tabId, windowId, action))
+    .catch(() => {});
+  return screenshotQueue;
+}
+
+async function captureAndAttachScreenshot(stepId, tabId, windowId, action) {
+  await ensureStateLoaded();
+  const existing = state.steps.find((s) => s.id === stepId);
+  if (!existing || existing.screenshotDataUrl) {
+    return;
+  }
+  const screenshotCount = state.steps.filter((item) => Boolean(item.screenshotDataUrl)).length;
+  if (screenshotCount >= MAX_SCREENSHOTS) {
+    return;
+  }
+
+  const settleMs = action === "navigate" ? 1200 : 700;
+  await waitForTabRender(tabId, settleMs);
+  const dataUrl = await captureStepScreenshot(tabId, windowId);
+  if (!dataUrl) {
+    return;
+  }
+
+  const target = state.steps.find((s) => s.id === stepId);
+  if (target && !target.screenshotDataUrl) {
+    target.screenshotDataUrl = dataUrl;
+    await saveState();
+    await notifyStateUpdated();
+  }
 }
 
 async function updateExpectedResult(stepIndex, expectedResult) {
