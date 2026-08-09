@@ -11,7 +11,6 @@ const stopBtn = document.getElementById("stop");
 const recordingIndicator = document.getElementById("recordingIndicator");
 const recordingText = document.getElementById("recordingText");
 const clearBtn = document.getElementById("clear");
-const copyTokenBtn = document.getElementById("copyToken");
 const uploadBtn = document.getElementById("upload");
 
 const uploadLabelsInput = document.getElementById("uploadLabels");
@@ -28,7 +27,7 @@ const CONFIG_INPUTS = [
   { el: zephyrStatusIdInput, key: "zephyrStatusId" },
   { el: zephyrPriorityIdInput, key: "zephyrPriorityId" },
   { el: zephyrSegmentFieldIdInput, key: "zephyrSegmentFieldId" }
-];
+].filter((entry) => entry.el);
 
 const RECORD_ICONS = {
   record: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6" fill="currentColor"></circle></svg>',
@@ -213,11 +212,6 @@ function renderSteps(steps) {
     topActions.appendChild(deleteButton);
     header.appendChild(topActions);
     item.appendChild(header);
-
-    const sourceNode = document.createElement("p");
-    sourceNode.className = "step-data";
-    sourceNode.textContent = `Source: ${step.path || step.url || ""}`;
-    item.appendChild(sourceNode);
 
     const descriptionLabel = document.createElement("p");
     descriptionLabel.className = "step-field-label";
@@ -418,27 +412,6 @@ async function onClearClick() {
   updateUi(response.state);
 }
 
-function looksLikeJwt(value) {
-  return typeof value === "string" && value.split(".").length === 3;
-}
-
-async function onCopyTokenClick() {
-  if (!chrome.cookies || !chrome.cookies.getAll) {
-    throw new Error("Cookies permission unavailable. Reload the extension.");
-  }
-
-  const cookies = await chrome.cookies.getAll({ name: "jwt" });
-  const tm4j = cookies.filter((c) => (c.domain || "").includes("tm4j.smartbear.com") && looksLikeJwt(c.value));
-  const candidate = tm4j[0] || cookies.find((c) => looksLikeJwt(c.value));
-
-  if (!candidate || !candidate.value) {
-    throw new Error("No Zephyr token found. Open Zephyr (app.tm4j.smartbear.com) in a tab, then try again.");
-  }
-
-  await navigator.clipboard.writeText(candidate.value);
-  statusNode.textContent = "Zephyr image token copied. Paste it into ZEPHYR_WEB_JWT in .env.";
-}
-
 async function onUploadClick() {
   uploadBtn.disabled = true;
   statusNode.textContent = "Uploading to Zephyr...";
@@ -516,7 +489,6 @@ function bind(button, handler) {
 bind(startBtn, onToggleRecordClick);
 bind(stopBtn, onStopClick);
 bind(clearBtn, onClearClick);
-bind(copyTokenBtn, onCopyTokenClick);
 bind(uploadBtn, onUploadClick);
 segmentInput.addEventListener("change", () => {
   onSegmentChange().catch((error) => {

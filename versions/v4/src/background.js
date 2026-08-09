@@ -714,7 +714,7 @@ function renderStepRow(step, index) {
     "<tr>",
     `  <td class=\"col-index\">${index + 1}</td>`,
     `  <td>${description}</td>`,
-    `  <td>${testData || "N/A"}</td>`,
+    `  <td class=\"col-data\">${testData || "N/A"}</td>`,
     `  <td>${expected}</td>`,
     `  <td class=\"col-shot\">${image}</td>`,
     "</tr>"
@@ -723,8 +723,6 @@ function renderStepRow(step, index) {
 
 function toHtmlViewer() {
   const caseName = escapeHtml(state.title || `Recorded Case ${new Date().toISOString().slice(0, 10)}`);
-  const objective = escapeHtml(state.config.objective || "Generated from Test Case Recorder browser session.");
-  const precondition = escapeHtml(state.config.precondition || "User has access and required test data.");
   const rowsHtml = state.steps.map((step, index) => renderStepRow(step, index)).join("\n");
   const stepsTable = state.steps.length
     ? [
@@ -747,6 +745,7 @@ function toHtmlViewer() {
     "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />",
     `  <title>${caseName}</title>`,
     "  <style>",
+    "    @page { size: A4 landscape; margin: 12mm; }",
     "    body { font-family: Segoe UI, Arial, sans-serif; margin: 24px; background: #f6f7f9; color: #1f2430; }",
     "    .card { background: #fff; border: 1px solid #d9deea; border-radius: 10px; padding: 16px; margin-bottom: 12px; }",
     "    h1 { margin: 0 0 8px; }",
@@ -759,19 +758,15 @@ function toHtmlViewer() {
     "    .steps-table th, .steps-table td { border: 1px solid #d9deea; padding: 8px; text-align: left; vertical-align: top; }",
     "    .steps-table th { background: #eef1f6; }",
     "    .col-index { width: 36px; text-align: center; }",
-    "    .col-shot { width: 240px; }",
-    "    .step-image { max-width: 220px; width: 100%; border: 1px solid #d9deea; border-radius: 6px; }",
+    "    .col-data { width: 180px; word-break: break-word; overflow-wrap: anywhere; }",
+    "    .col-shot { width: 420px; }",
+    "    .step-image { max-width: 400px; width: 100%; border: 1px solid #d9deea; border-radius: 6px; }",
     "  </style>",
     "</head>",
     "<body>",
     "  <section class=\"card\">",
     `    <h1>${caseName}</h1>`,
-    "    <div class=\"meta\">",
-    `      <p><strong>Project Key:</strong> ${escapeHtml(state.config.projectKey || "DEMO")}</p>`,
-    `      <p><strong>Objective:</strong> ${objective}</p>`,
-    `      <p><strong>Precondition:</strong> ${precondition}</p>`,
-    `      <p><strong>Recorded At:</strong> ${escapeHtml(state.startedAt || "")}</p>`,
-    "    </div>",
+    `    <p><strong>Recorded At:</strong> ${escapeHtml(state.startedAt || "")}</p>`,
     "  </section>",
     "  <section class=\"card\">",
     "    <h2>Steps</h2>",

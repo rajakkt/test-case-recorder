@@ -220,11 +220,6 @@ Requirements:
 - Be signed in to Zephyr in a browser tab (keep it open/recently refreshed — the session token is short-lived, ~15 min).
 - Enter a **test case title** before uploading.
 
-Optional advanced overrides (expand "Zephyr upload settings" in the popup):
-
-- **Labels** (comma-separated).
-- **Folder ID**, **Status ID**, **Priority ID**, and **Segment custom field ID** — numeric IDs that override the automatic resolution above. Normally not needed; leave blank.
-
 How it works (internal API, no token):
 
 - Reads the session `jwt` cookie via the `cookies` permission and calls Zephyr's internal web API the same way the Zephyr web app does:
