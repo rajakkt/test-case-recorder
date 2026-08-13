@@ -8,6 +8,7 @@ Chrome Extension MVP that records manual browser actions and exports Zephyr-read
 - Version 2 (`versions/v2/`) — adds a combined Record/Stop button with a live recording indicator, per-step edit (pencil) and delete (x) controls, per-step screenshot show/hide, a printable PDF report (table view), a one-click "Copy Zephyr Image Token" helper, and an updated uploader with screenshot handling modes (attachments or inline images).
 - Version 3 (`versions/v3/`) — builds on Version 2 with higher-quality capture: records inside iframes/frames, generates clearer role-aware step descriptions and expected results, produces proper "Navigate to …" steps, filters out redundant SPA re-navigation noise, and waits for the page to finish rendering before taking each screenshot.
 - Version 4 (`versions/v4/`) — adds one-click **upload to Zephyr directly from the extension** using your existing browser session (the Zephyr `jwt` cookie). No API token, no `.env`, and no PowerShell required. Enter a title and optional folder path; the extension auto-resolves the folder, status, priority, and required custom fields for the current project, and embeds screenshots inline in each step's Expected Result.
+- Version 5 (`versions/v5/`) — everything in Version 4 plus **export the test case as a Word document (.docx)** or an **Excel document (.xlsx)** from the Export menu, both with screenshots embedded.
 
 Load whichever version you want as an unpacked extension (see below).
 
@@ -38,6 +39,7 @@ The extension focuses only on recording and export. Zephyr upload is handled by 
 - `versions/v2/`: Version 2 of the extension and uploader (see below)
 - `versions/v3/`: Version 3 of the extension and uploader (see below)
 - `versions/v4/`: Version 4 of the extension with built-in Zephyr upload (see below)
+- `versions/v5/`: Version 5 of the extension with Word/Excel export (see below)
 
 ## Load in Chrome
 
@@ -230,6 +232,15 @@ How it works (internal API, no token):
   - Inline images: `GET /backend/rest/tests/2.0/uploaddetails/richtextattachment` then a signed upload to the rich-text store.
 - These are internal endpoints and may change if SmartBear updates their app; if uploads start failing, re-capture the relevant request and update the mapping.
 - The PowerShell uploader is still included under `versions/v4/tools` for advanced/batch scenarios, but is no longer required.
+
+## Version 5 features (`versions/v5`)
+
+Version 5 is a self-contained copy under `versions/v5`. Load `versions/v5` as the unpacked extension to use it. It keeps all Version 4 features and adds two document export options to the **Export** menu:
+
+- **Export Word (.docx)** — a real Word document (Office Open XML) with the steps table (#, Description, Test Data, Expected Result) and each step's **screenshot embedded as a native picture**. Opens directly in Microsoft Word (landscape). Table rows don't split across pages and the header repeats on each page. No "format and extension" warning.
+- **Export Excel (.xlsx)** — a real Excel workbook (Office Open XML) with the step data columns (#, Description, Test Data, Expected Result) and each step's **screenshot embedded** as a floating picture anchored to the Screenshot column of its row. Opens directly in Microsoft Excel with no "format and extension" warning.
+
+Both downloads use the same **Export** button/menu as JSON/HTML/PDF and save via the browser's download prompt.
 
 ## Export format
 

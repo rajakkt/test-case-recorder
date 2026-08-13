@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Test Case Recorder</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="container">
+      <label class="field" for="title">Test case title</label>
+      <input id="title" type="text" placeholder="Enter Test Case Title" />
+
+      <label class="field" for="folderPath">Folder path</label>
+      <input id="folderPath" type="text" placeholder="e.g. /CSD/zephyr-uploader (blank = project root)" />
+
+      <label class="field" for="segment">Segment</label>
+      <input id="segment" type="text" placeholder="Enter Segment" />
+
+      <div class="toolbar">
+        <button id="record" class="icon-action primary" type="button" title="Record" aria-label="Record">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6" fill="currentColor"></circle></svg>
+        </button>
+        <button id="stop" class="icon-action stop hidden" type="button" title="Stop" aria-label="Stop">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"></rect></svg>
+        </button>
+        <div class="export-menu">
+          <button id="exportButton" class="icon-action accent" type="button" title="Export" aria-label="Export">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"></path><path d="M7 10l5 5 5-5"></path><path d="M5 21h14"></path></svg>
+          </button>
+          <div id="exportMenu" class="export-menu-list hidden">
+            <button class="export-option" type="button" data-format="json">Export JSON</button>
+            <button class="export-option" type="button" data-format="html">Export HTML Viewer</button>
+            <button class="export-option" type="button" data-format="pdf">Export PDF (Open Report)</button>
+            <button class="export-option" type="button" data-format="word">Export Word (.docx)</button>
+            <button class="export-option" type="button" data-format="excel">Export Excel (.xlsx)</button>
+          </div>
+        </div>
+        <button id="upload" class="icon-action upload" type="button" title="Upload to Zephyr (uses your browser session)" aria-label="Upload to Zephyr">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V9"></path><path d="M8 12l4-4 4 4"></path><path d="M20 16.5A4.5 4.5 0 0 0 17.5 8h-1.2A6 6 0 1 0 5 13.5"></path></svg>
+        </button>
+        <button id="clear" class="icon-action" type="button" title="Clear steps" aria-label="Clear steps">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"></path><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>
+        </button>
+      </div>
+
+      <div id="recordingIndicator" class="recording-indicator hidden">
+        <span class="recording-dot"></span> <span id="recordingText">Recording...</span>
+      </div>
+
+      <p id="status" class="status">Idle</p>
+      <p id="stepCount" class="step-count">0 steps</p>
+
+      <section class="steps-panel">
+        <h2>Edit Captured Steps</h2>
+        <div id="stepsList" class="steps-list"></div>
+      </section>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>
