@@ -1,6 +1,6 @@
-# test-case-recorder
+# Smart Script
 
-Chrome Extension MVP that records manual browser actions and exports Zephyr-ready test case files with screenshots.
+Chrome Extension MVP that records manual browser actions and exports Zephyr-ready test case files with screenshots. The latest version (`versions/v5`) is branded **Smart Script** and can upload directly to Zephyr and export Word/Excel/PDF documents.
 
 ## Versions
 
@@ -8,7 +8,7 @@ Chrome Extension MVP that records manual browser actions and exports Zephyr-read
 - Version 2 (`versions/v2/`) — adds a combined Record/Stop button with a live recording indicator, per-step edit (pencil) and delete (x) controls, per-step screenshot show/hide, a printable PDF report (table view), a one-click "Copy Zephyr Image Token" helper, and an updated uploader with screenshot handling modes (attachments or inline images).
 - Version 3 (`versions/v3/`) — builds on Version 2 with higher-quality capture: records inside iframes/frames, generates clearer role-aware step descriptions and expected results, produces proper "Navigate to …" steps, filters out redundant SPA re-navigation noise, and waits for the page to finish rendering before taking each screenshot.
 - Version 4 (`versions/v4/`) — adds one-click **upload to Zephyr directly from the extension** using your existing browser session (the Zephyr `jwt` cookie). No API token, no `.env`, and no PowerShell required. Enter a title and optional folder path; the extension auto-resolves the folder, status, priority, and required custom fields for the current project, and embeds screenshots inline in each step's Expected Result.
-- Version 5 (`versions/v5/`) — everything in Version 4 plus **export the test case as a Word document (.docx)** or an **Excel document (.xlsx)** from the Export menu, both with screenshots embedded.
+- Version 5 (`versions/v5/`) — **rebranded as “Smart Script”** (green lightning-bolt icon). Everything in Version 4 plus **export the test case as a Word document (.docx)** or an **Excel document (.xlsx)** from the Export menu, both with screenshots embedded.
 
 Load whichever version you want as an unpacked extension (see below).
 
@@ -235,12 +235,14 @@ How it works (internal API, no token):
 
 ## Version 5 features (`versions/v5`)
 
-Version 5 is a self-contained copy under `versions/v5`. Load `versions/v5` as the unpacked extension to use it. It keeps all Version 4 features and adds two document export options to the **Export** menu:
+Version 5 is a self-contained copy under `versions/v5`, branded as **Smart Script** (name and green lightning-bolt icon set in the manifest; icons live in `versions/v5/icons`). Load `versions/v5` as the unpacked extension to use it. It keeps all Version 4 features and adds two document export options to the **Export** menu:
 
 - **Export Word (.docx)** — a real Word document (Office Open XML) with the steps table (#, Description, Test Data, Expected Result) and each step's **screenshot embedded as a native picture**. Opens directly in Microsoft Word (landscape). Table rows don't split across pages and the header repeats on each page. No "format and extension" warning.
 - **Export Excel (.xlsx)** — a real Excel workbook (Office Open XML) with the step data columns (#, Description, Test Data, Expected Result) and each step's **screenshot embedded** as a floating picture anchored to the Screenshot column of its row. Opens directly in Microsoft Excel with no "format and extension" warning.
 
 Both downloads use the same **Export** button/menu as JSON/HTML/PDF and save via the browser's download prompt.
+
+A ready-to-share install guide for the team is provided at [docs/SmartScript-Install-Guide.html](docs/SmartScript-Install-Guide.html) (HTML; can be imported into Confluence).
 
 ## Export format
 
