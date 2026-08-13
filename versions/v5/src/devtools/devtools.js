@@ -1,5 +1,5 @@
 chrome.devtools.panels.create(
-  "Test Recorder",
+  "Smart Script",
   "",
   "src/devtools/panel.html",
   () => {}
