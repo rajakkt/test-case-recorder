@@ -1,6 +1,6 @@
 const STORAGE_KEY = "testCaseRecorderState";
 const DEFAULT_EXPECTED_RESULT = "Action succeeds and the expected UI state is shown";
-const MAX_SCREENSHOTS = 20;
+const MAX_SCREENSHOTS = 500;
 
 const state = {
   isRecording: false,
